@@ -1,11 +1,13 @@
 const OpenAI = require('openai')
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 require('dotenv').config()
-
+const proxyAgent = new HttpsProxyAgent(process.env.PROXY_URL);
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     maxRetries: 3,
-    timeout: 60 * 1000
+    timeout: 60 * 1000,
+    httpAgent: proxyAgent,
 })
 
 
