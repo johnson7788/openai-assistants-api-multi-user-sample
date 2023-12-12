@@ -26,7 +26,8 @@ let thread_id = ''
 let users = []
 
 app.use(cors())
-//app.use(bodyParser.json())//使用 body-parser 模块的 json() 函数来解析 JSON 数据。这里的配置选项 {limit: '50mb'} 表示允许请求数据的最大体积为 50MB。
+//app.use(bodyParser.json())
+//使用 body-parser 模块的 json() 函数来解析 JSON 数据。这里的配置选项 {limit: '50mb'} 表示允许请求数据的最大体积为 50MB。
 app.use(bodyParser.json({limit: '50mb'}))
 app.use(bodyParser.urlencoded({limit: '50mb', extended: true})) //使用 body-parser 模块的 urlencoded() 函数来解析表单数据。这里的配置选项 {limit: '50mb', extended: true} 表示允许请求数据的最大体积为 50MB，并且允许解析嵌套的表单数据。
 
@@ -251,8 +252,10 @@ io.on('connection', (socket) => {
             try {
                 //异步调用getAssistant
                 const assistant = await openai.getAssistant()
-                assistant_name = assistant.name //获取助手的名称 "BeautyChat"
-                assistant_instructions = assistant.instructions  //助手的指令："Now your name is BeautyChat,developed by 菱歌科技有限公司,You are an expert in cosmetics and answer language same as user's questions. Your answering style tends to be humorous and professional.你的任务是根据用户的问题，帮用户寻找的适合他的香水商品，优先使用提供的商品库文件中的商品。"
+                //获取助手的名称 "BeautyChat"
+                assistant_name = assistant.name 
+                //助手的指令："Now your name is xxx,You are an expert inx. Your answering style tends to be humorous and professional."
+                assistant_instructions = assistant.instructions  
                 //创建一个assistant线程
                 const thread = await openai.createThread()
                 //线程id： "thread_EIIapaXfLe3jZ3hsoBMXqWX4"
