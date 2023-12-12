@@ -1,4 +1,5 @@
 <script setup>
+//父组件可以给这里传颜色
 defineProps({
     color: {
         type: String,

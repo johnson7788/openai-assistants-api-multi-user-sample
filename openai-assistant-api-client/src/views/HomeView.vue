@@ -20,16 +20,16 @@ const userName = ref('')
 const userId = ref('')
 const message = ref('')
 const isDialogShown = ref(false)
-const isAIProcessing = ref(false)
-const isConnecting = ref(false)
+const isAIProcessing = ref(false) //是否等待AI回复中
+const isConnecting = ref(false)  //控制当前是否是连接状态，即打开socket
 
 function handleSend() {
-
+  //来发送用户消息，如果AI正在思考中，那么就直接返回
   if(isAIProcessing.value) {
     return
   }
 
-  console.log(Date.now())
+  console.log("用户开始发送消息，当前时间是: ",Date.now())
 
   const user_message = { 
     user_id: userId.value, 
@@ -41,33 +41,33 @@ function handleSend() {
   }
 
   state.messageEvents.push(user_message)
-
+  //将消息发送到服务器
   socket.emit('message', user_message)
 
   message.value = ''
-
+  //发送完成后滚动下屏幕
   resetScroll()
 
 }
 
 function handleSubmitName(value) {
-  
+  //处理用户名提交并注册用户，value是用户输入的用户名
   isConnecting.value = true
-
+  //更新ref中的userName
   userName.value = value
   store.setName(value)
-
+  // 如果已经是连接的状态，那么就注册用户，否则就进行连接
   if(state.connected) {
     socket.emit('register', { user_id: userId.value, name: userName.value })
     isConnecting.value = false
   } else {
-    socket.connect()
+    socket.connect() //打开socket
   }
 
 }
 
 function resetScroll() {
-  
+  //函数来滚动消息列表, setTimeout() 方法将消息列表滚动到底部
   setTimeout(() => {
     messageRef.value.scrollTop = messageRef.value.scrollHeight
   }, 300)
@@ -75,7 +75,7 @@ function resetScroll() {
 }
 
 function showSystemMessage(name, stype) {
-
+  //函数来显示系统消息,将系统消息添加到消息列表
   const message_text = stype === 'welcome' ? `Welcome ${name}` : stype === 'disconnect' ? `You are disconnected from the server` : `${name} has ${stype === 'join' ? 'joined' : 'left'} the discussion`
 
   const system_message = { 
@@ -83,17 +83,18 @@ function showSystemMessage(name, stype) {
     name: 'system', 
     content: message_text, 
     role: 'system', 
-    id: getSimpleId(), 
+    id: getSimpleId(),  //创建一个用户id，eg："170236891260777ojnb41fmc3"
     created_at: Date.now() 
   }
-
+  //socket.js中定义了state，这里是把系统消息放入messageEvents数组中
   state.messageEvents.push(system_message)
-
+  //滚动屏幕
   resetScroll()
 
 }
 
 function getBackgroundClass(role, user_id) {
+  //函数根据用户/AI 设置消息的背景颜色
   if(role === 'system') {
     return 'system'
   } if(role === 'assistant') {
@@ -102,15 +103,14 @@ function getBackgroundClass(role, user_id) {
     return user_id !== userId.value ? 'other' : 'user'
   }
 }
-
+//实现处理 AI 处理开始/结束事件的函数
 function handleAIOnStart() {
   isAIProcessing.value = true
 }
-
 function handleAIOnEnd() {
   isAIProcessing.value = false
 }
-
+// 返回排序后的messages，state.messageEvents来自socket.js
 const messages = computed(() => {
   return state.messageEvents.sort((a, b) => {
     if(a.created_at > b.created_at) return 1
@@ -160,7 +160,7 @@ watch(state.systemTrigger, ([ newval ]) => {
   }
   
 })
-
+//钩子设置初始值并检查连接状态
 onMounted(() => {
   
   if(state.connected) {
@@ -185,7 +185,9 @@ onMounted(() => {
   <div class="container">
     <div class="messages" ref="messageRef">
       <div class="message-item" :class="{ rowReverse: msg.user_id !== userId }" v-for="(msg) in messages" :key="msg.id">
+        <!-- 显示在左侧还是在右侧，跟msg.user_id有关 -->
         <div class="message-contents" :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
+          <!-- getBackgroundClass设置不同的用户不同的颜色 -->
           <div class="message-text" :class="getBackgroundClass(msg.role, msg.user_id)">{{ msg.content }}</div>
         </div>
         <div class="sender" v-if="msg.role !== 'system'">

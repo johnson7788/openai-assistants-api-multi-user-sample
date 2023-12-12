@@ -14,7 +14,7 @@ const openai = new OpenAI({
 async function getAssistant() {
 
     try {
-        
+        //获取assistant
         return await openai.beta.assistants.retrieve(process.env.OPENAI_ASSISTANT_ID)
     
     } catch(error) {
@@ -107,7 +107,7 @@ async function getMessages({
     try {
 
         const messages = await openai.beta.threads.messages.list(threadId)
-        
+        //获取返回的信息
         return messages.data
 
     } catch(error) {

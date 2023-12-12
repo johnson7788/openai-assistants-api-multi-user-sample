@@ -17,7 +17,7 @@ export const useAppDataStore = defineStore('appData', () => {
 
     const name = ref(def_name)
     const id = ref(def_id)
-
+    // 保存用户名到本地
     function setName(sname) {
         name.value = sname
         localStorage.setItem(store_key, JSON.stringify({ name: sname, id: id.value }))
