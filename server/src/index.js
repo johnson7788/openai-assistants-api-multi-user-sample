@@ -19,7 +19,12 @@ const io = new Server(server, {
         methods: ['GET', 'POST']
     }
 })
-//使用CORS中间件
+//初始化4个变量，助手指令：assistant_instructions， 助手名字：assistant_name， assistant线程id： thread_id， 使用的用户：users
+let assistant_instructions = ''
+let assistant_name = ''
+let thread_id = ''
+let users = []
+
 app.use(cors())
 //app.use(bodyParser.json())//使用 body-parser 模块的 json() 函数来解析 JSON 数据。这里的配置选项 {limit: '50mb'} 表示允许请求数据的最大体积为 50MB。
 app.use(bodyParser.json({limit: '50mb'}))
@@ -31,11 +36,165 @@ app.get('/ping', (req, res) => {
     res.status(200).json({ message: 'Pong!' })
 
 })
-//初始化4个变量，助手指令：assistant_instructions， 助手名字：assistant_name， assistant线程id： thread_id， 使用的用户：users
-let assistant_instructions = ''
-let assistant_name = ''
-let thread_id = ''
-let users = []
+
+app.post('/stream', async (req, res) => {
+
+    const { user_id, name, content, role, id, created_at } = req.body
+
+    if(!user_id || !name || !content || !role || !id || !created_at) {
+        res.sendStatus(400)
+        return
+    }
+    
+    // Note: 
+    // For simplicity or laziness, I will not be checking if assistant or thread is alive.
+    
+    try {
+
+        const message_id = id
+        
+        const ret_message = await openai.addMessage({ 
+            threadId: thread_id, 
+            message: content, 
+            messageId: message_id, 
+            userId: user_id, 
+            name: name 
+        })
+
+        console.log('message', ret_message)
+
+        const run = await openai.startRun({ 
+            threadId: thread_id,
+            instructions: assistant_instructions + `\nPlease address the user as ${name}.\nToday is ${new Date()}.`
+        })
+
+        console.log('run', run)
+
+        const run_id = run.id
+
+        res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+        })
+
+        let flagFinish = false
+
+        let MAX_COUNT = 2 * 600 // 120s 
+        let TIME_DELAY = 100 // 100ms
+        let count = 0
+
+        do {
+
+            console.log(`Loop: ${count}`)
+
+            const run_data = await openai.getRun({ threadId: thread_id, runId: run_id })
+
+            const status = run_data.status
+
+            console.log(`Status: ${status} ${(new Date()).toLocaleTimeString()}`)
+
+            if(status === 'completed') {
+
+                const messages = await openai.getMessages({ threadId: thread_id })
+
+                console.log('messages-show', messages)
+
+                //let new_messages = []
+
+                for(let i = 0; i < messages.length; i++) {
+                    const msg = messages[i]
+
+                    if (Object.prototype.hasOwnProperty.call(msg.metadata, 'id'))  {
+                        if(msg.metadata.id === message_id) {
+                            break
+                        }
+                    } else {
+                        
+                        const output_data = msg.content[0].text.value
+                        const split_words = output_data.split(' ')
+
+                        // We will simulate streaming per word! :P
+                        for(let word of split_words) {
+                            res.write(`${word} `)
+                            await utils.wait(TIME_DELAY)
+                        }
+                        
+                    }
+
+                }
+
+                flagFinish = true
+            
+            } else if(status === 'requires_action'){
+                
+                console.log('run-data', run_data)
+
+                const required_action = run_data.required_action
+                const required_tools = required_action.submit_tool_outputs.tool_calls
+
+                console.log('required-action', required_action)
+                console.log('required-tools', required_tools)
+                
+                const tool_output_items = []
+
+                required_tools.forEach((rtool) => {
+                    
+                    let tool_output = { status: 'error', message: 'No function found' }
+
+                    tool_output_items.push({
+                        tool_call_id: rtool.id,
+                        output: JSON.stringify(tool_output)
+                    })
+
+                })
+
+                console.log('tools-output', tool_output_items)
+
+                const ret_tool = await submitOutputs({
+                    threadId: thread_id,
+                    runId: run_id,
+                    tool_outputs: tool_output_items
+                })
+
+                console.log('ret-tool', ret_tool)
+
+            } else if(status === 'expired' || status === 'cancelled' || status === 'failed') {
+                
+                flagFinish = true
+
+            }
+            
+            if(!flagFinish) {
+
+                count++
+                
+                if(count >= MAX_COUNT) {
+
+                    flagFinish = true
+
+                } else {
+
+                    await utils.wait(TIME_DELAY)
+
+                }
+
+            }
+
+        } while(!flagFinish)
+
+        res.end()
+
+    } catch(error) {
+
+        console.log(error.name, error.message)
+
+        res.sendStatus(400)
+        return
+
+    }
+
+})
 
 //这是 Socket.IO 服务器端代码，它监听客户端的连接事件，并在有新的客户端连接时执行回调函数。
 io.on('connection', (socket) => {
@@ -118,11 +277,9 @@ io.on('connection', (socket) => {
                 for(let i = 0; i < message_list.length; i++) {
                     const msg = message_list[i]
 
-                    //console.log(msg)
-
                     new_messages.push({
-                        user_id: null,
-                        name: assistant_name,
+                        user_id: msg.metadata ? msg.metadata.user_id : null,
+                        name: msg.metadata ? msg.metadata.name : assistant_name,
                         id: msg.id,
                         created_at: msg.created_at.toString().padEnd(13, 0),
                         role: msg.role,
@@ -163,7 +320,7 @@ io.on('connection', (socket) => {
 
             const message_id = message.id
             //把用户的消息发送到openAI的线程上，等待
-            const ret_message = await openai.addMessage({ threadId: thread_id, message: message.content, messageId: message_id })
+            const ret_message = await openai.addMessage({ threadId: thread_id, message: message.content, messageId: message_id, userId: message.user_id, name: message.name })
 
             console.log('openAI返回到接收到传送消息的确认状态', ret_message)
             //  开启一个openAI的runner

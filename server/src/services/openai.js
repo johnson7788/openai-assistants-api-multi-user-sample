@@ -77,6 +77,8 @@ async function addMessage({
     threadId,
     message,
     messageId,
+    userID,
+    name,
 }) {
 
     try {
@@ -84,6 +86,8 @@ async function addMessage({
         // add metadata
         let metadata = {}
         metadata['id'] = messageId
+        metadata['name'] = name
+        metadata['user_id'] = userID
 
         return await openai.beta.threads.messages.create(
             threadId,

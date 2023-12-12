@@ -3,6 +3,7 @@ import { onMounted, ref, computed, watch } from 'vue'
 
 import { socket, state } from '@/socket'
 
+import ToggleButton from '../components/ToggleButton.vue'
 import DialogName from '../components/DialogName.vue'
 import IconOpenAI from '../components/icons/IconOpenAI.vue'
 import IconPerson from '../components/icons/IconPerson.vue'
@@ -23,6 +24,100 @@ const isDialogShown = ref(false)
 const isAIProcessing = ref(false) //是否等待AI回复中
 const isConnecting = ref(false)  //控制当前是否是连接状态，即打开socket
 
+const isStreaming = ref(false)
+
+function handleToggle(flag) {
+  console.log("toggle", flag)
+  isStreaming.value = flag
+}
+
+function sendToSocket(user_message) {
+
+  state.messageEvents.push(user_message)
+
+  socket.emit('message', user_message)
+
+  message.value = ''
+
+  resetScroll()
+
+}
+
+async function sendToStream(user_message) {
+
+  isAIProcessing.value = true
+
+  state.messageEvents.push(user_message)
+
+  message.value = ''
+
+  resetScroll()
+
+  try {
+
+    const response = await fetch(`http://${import.meta.env.VITE_SERVER_IPADDRESS}:${import.meta.env.VITE_SERVER_PORT}/stream`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(user_message)
+    })
+
+    if(!response.ok) {
+      console.log('Oops, an error occurred', response.status)
+    }
+
+    const msg_id = getSimpleId()
+
+    let assistant_message = { 
+      user_id: null,
+      name: 'CatGPT', 
+      content: '', 
+      role: 'assistant', 
+      id: msg_id, 
+      created_at: Date.now() 
+    }
+    state.messageEvents.push(assistant_message)
+
+    const reader = response.body.getReader()
+
+    let flag = true
+
+    while(flag) {
+
+      const { done, value } = await reader.read()
+
+      if(done) {
+        flag = false
+        break
+      }
+
+      const text = new TextDecoder().decode(value)
+
+      state.messageEvents = state.messageEvents.map((item) => {
+        return {
+          ...item,
+          content: item.id === msg_id ? item.content + text : item.content
+        }
+      })
+
+      resetScroll()
+
+    }
+
+  } catch(error) {
+
+    console.log(error.name, error.message)
+
+  } finally {
+
+    isAIProcessing.value = false
+
+  }
+
+}
+
 function handleSend() {
   //来发送用户消息，如果AI正在思考中，那么就直接返回
   if(isAIProcessing.value) {
@@ -40,6 +135,17 @@ function handleSend() {
     created_at: Date.now() 
   }
 
+  if(isStreaming.value) {
+
+    sendToStream(user_message)
+
+  } else [
+
+    sendToSocket(user_message)
+
+  ]
+
+  /*
   state.messageEvents.push(user_message)
   //将消息发送到服务器
   socket.emit('message', user_message)
@@ -47,6 +153,7 @@ function handleSend() {
   message.value = ''
   //发送完成后滚动下屏幕
   resetScroll()
+  */
 
 }
 
@@ -211,7 +318,9 @@ onMounted(() => {
       <button :disabled="!message || isAIProcessing" @click="handleSend" class="button">Send</button>
     </div>
     <div class="footer">
-      <span>UserID: {{ userId }}</span>
+      <div class="toggle">
+        <ToggleButton :checked="isStreaming" @change="handleToggle" />
+      </div>
     </div>
     <Teleport to="body">
       <DialogName :show="isDialogShown" :disabled="isConnecting" @submit="handleSubmitName" />
@@ -220,6 +329,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.toggle {
+  position: relative;
+}
 .loading-text {
   position: relative;
   padding: 6px 0;
