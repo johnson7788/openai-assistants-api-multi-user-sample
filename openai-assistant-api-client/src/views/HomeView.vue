@@ -17,44 +17,44 @@ const store = useAppDataStore()
 
 const messageRef = ref(null)
 const inputRef = ref(null)
-const userName = ref('')
+const userName = ref('')   //保存用户名
 const userId = ref('')
-const message = ref('')
+const message = ref('')  //用户输入的内容
 const isDialogShown = ref(false)
 const isAIProcessing = ref(false) //是否等待AI回复中
 const isConnecting = ref(false)  //控制当前是否是连接状态，即打开socket
 
-const isStreaming = ref(false)
-
+const isStreaming = ref(false) //判断是不是流式处理
+//接收子组件的事件
 function handleToggle(flag) {
-  console.log("toggle", flag)
+  console.log("是否是流式处理", flag)
   isStreaming.value = flag
 }
 
 function sendToSocket(user_message) {
-
+  //先把用户消息放入消息事件，然后发送socket请求
   state.messageEvents.push(user_message)
-
+  //发送用户消息到server，事件名称是message
   socket.emit('message', user_message)
-
+  //重制用户的输入
   message.value = ''
-
+  //滚动屏幕
   resetScroll()
 
 }
 
 async function sendToStream(user_message) {
-
+  //首先将 isAIProcessing.value 设置为 true，表示 AI 正在处理中。
   isAIProcessing.value = true
-
+  //然后将用户消息 user_message 添加到 state.messageEvents 中，
   state.messageEvents.push(user_message)
-
+  //并将 message.value 置空，然后重置滚动条。
   message.value = ''
 
   resetScroll()
 
   try {
-
+    //使用 fetch 函数向指定的 URL 发送 POST 请求，请求的内容为 user_message。如果请求成功，会得到一个响应 response。
     const response = await fetch(`http://${import.meta.env.VITE_SERVER_IPADDRESS}:${import.meta.env.VITE_SERVER_PORT}/stream`, {
       method: 'POST',
       headers: {
@@ -63,16 +63,16 @@ async function sendToStream(user_message) {
       },
       body: JSON.stringify(user_message)
     })
-
+    //如果响应不成功（即 !response.ok），会在控制台打印出错误信息。
     if(!response.ok) {
       console.log('Oops, an error occurred', response.status)
     }
-
+    //生成一个 msg_id，
     const msg_id = getSimpleId()
-
+    //创建一个 assistant_message 对象
     let assistant_message = { 
       user_id: null,
-      name: 'CatGPT', 
+      name: 'ChatGPT', 
       content: '', 
       role: 'assistant', 
       id: msg_id, 
@@ -83,18 +83,18 @@ async function sendToStream(user_message) {
     const reader = response.body.getReader()
 
     let flag = true
-
+    // 不停读取新的数据
     while(flag) {
-
+      //直到都读取完成
       const { done, value } = await reader.read()
 
       if(done) {
         flag = false
         break
       }
-
+      //解码成文本
       const text = new TextDecoder().decode(value)
-
+      //更新messageEvents
       state.messageEvents = state.messageEvents.map((item) => {
         return {
           ...item,
@@ -125,7 +125,7 @@ function handleSend() {
   }
 
   console.log("用户开始发送消息，当前时间是: ",Date.now())
-
+  //content是用户输入的内容， name： 用户名
   const user_message = { 
     user_id: userId.value, 
     name: userName.value, 
@@ -134,7 +134,7 @@ function handleSend() {
     id: getSimpleId(), 
     created_at: Date.now() 
   }
-
+  //流式传输还是其它方式
   if(isStreaming.value) {
 
     sendToStream(user_message)
@@ -193,7 +193,7 @@ function showSystemMessage(name, stype) {
     id: getSimpleId(),  //创建一个用户id，eg："170236891260777ojnb41fmc3"
     created_at: Date.now() 
   }
-  //socket.js中定义了state，这里是把系统消息放入messageEvents数组中
+  //socket.js中定义了state，这里是把系统消息放入messageEvents数组中，这会触发下面的compute方法
   state.messageEvents.push(system_message)
   //滚动屏幕
   resetScroll()
@@ -217,7 +217,7 @@ function handleAIOnStart() {
 function handleAIOnEnd() {
   isAIProcessing.value = false
 }
-// 返回排序后的messages，state.messageEvents来自socket.js
+// 当state.messageEvents有变化时，更新messages，即更新消息列表，返回排序后的messages，state.messageEvents来自socket.js
 const messages = computed(() => {
   return state.messageEvents.sort((a, b) => {
     if(a.created_at > b.created_at) return 1
@@ -226,19 +226,23 @@ const messages = computed(() => {
   })
 })
 
+//监控用户消息state.connectTrigger状态是否改变，如果是连接状态，那么注册用户
 watch(state.connectTrigger, () => {
     
   socket.emit('register', { user_id: userId.value, name: userName.value })
   isConnecting.value = false
 
 })
-
+//监控消息是否改变，消息改变的话，就滚动聊天窗口
 watch(state.messageTrigger, () => {
   
   resetScroll()
   
 })
-
+//监控系统消息state.systemTrigger是否改变， eg state.systemTrigger中的内容： {
+    // "type": "welcome",
+    // "iat": 1702517965736
+// }，如果发生改变，把新的值传入，传入的新值被取数组的第1个元素作为值，传入，因为state.systemTrigger是1个列表，我们只需取最新的消息即可
 watch(state.systemTrigger, ([ newval ]) => {
     
   console.log("system-trigger",  newval.type, newval.data)
@@ -257,7 +261,7 @@ watch(state.systemTrigger, ([ newval ]) => {
       showSystemMessage(newval.data.name, newval.type)
       break
     case 'ai-start':
-      handleAIOnStart()
+      handleAIOnStart()  //更改显示状态
       break
     case 'ai-end':
       handleAIOnEnd()

@@ -1,6 +1,27 @@
 import { reactive } from 'vue'
 import { io } from 'socket.io-client'
-
+/*messageEvents: 中的内容, name分为system, user的名字和Chatgpt
+[{
+    "user_id": "",
+    "name": "system",
+    "content": "Welcome Johnson",
+    "role": "system",
+    "id": "17025193754441d4bd49ika3jc",
+    "created_at": 1702519375444
+}
+{
+    "user_id": "1702519334146cbhcghge75j",
+    "name": "Johnson",
+    "content": "hello",
+    "role": "user",
+    "id": "1702519396728ojph6dkfolch",
+    "created_at": 1702519396728
+}]
+systemTrigger: [{
+    "type": "welcome",
+    "iat": 1702519358249
+}]
+*/
 export const state = reactive({
     id: '',
     connected: false,
@@ -12,8 +33,9 @@ export const state = reactive({
 
 const url = `http://${import.meta.env.VITE_SERVER_IPADDRESS}:${import.meta.env.VITE_SERVER_PORT}`
 
+//初始化socket
 export const socket = io(url, { autoConnect: false })
-
+//监听来自服务器的消息
 socket.on('connect', () => {
 
     state.id = socket.id
@@ -21,7 +43,7 @@ socket.on('connect', () => {
     console.log('connect', socket.id, (new Date()).toLocaleTimeString())
 
     state.connected = true
-
+    //记录当前的连接时间
     state.connectTrigger[0] = Date.now()
 
 })

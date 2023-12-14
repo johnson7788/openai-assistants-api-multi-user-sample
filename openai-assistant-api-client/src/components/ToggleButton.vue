@@ -1,22 +1,23 @@
 <script setup>
 import { computed, toRefs } from 'vue'
-
+//接收父组件传入的参数
 const props = defineProps({
     checked: {
         type: Boolean,
         default: false,
     },
 })
-
+//使用 defineEmits 定义了组件的事件，其中包含了一个名为 change 的事件。change事件会被emit触发，然后将信息传递给父组件。
 const emit = defineEmits(['change'])
-
+//使用 toRefs 将 props 转换为普通对象，并解构出其中的 checked 属性。checked是响应式的
 const { checked } = toRefs(props)
 
+//这里面的value是True或false, checkbox点击后，是true
 const isChecked = computed({
       get: () => checked.value,
       set: value => emit('change', value)
     })
-
+// 显示的字幕，是stream还是socket
 const caption = computed(() => checked.value ? 'stream' : 'socket')
 
 </script>
