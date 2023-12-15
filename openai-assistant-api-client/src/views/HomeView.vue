@@ -15,12 +15,12 @@ import { useAppDataStore } from '../stores/appdata'
 
 const store = useAppDataStore()
 
-const messageRef = ref(null)
-const inputRef = ref(null)
+const messageRef = ref(null)  //历史对话信息
+const inputRef = ref(null)  //对话框输入组件
 const userName = ref('')   //保存用户名
-const userId = ref('')
+const userId = ref('')  //oumount时，getSimpleId自动生成 id
 const message = ref('')  //用户输入的内容
-const isDialogShown = ref(false)
+const isDialogShown = ref(false)  //是否显示姓名弹出框，如果没有
 const isAIProcessing = ref(false) //是否等待AI回复中
 const isConnecting = ref(false)  //控制当前是否是连接状态，即打开socket
 
@@ -156,7 +156,7 @@ function handleSend() {
   */
 
 }
-
+// 接收最弹出框传入来的名称
 function handleSubmitName(value) {
   //处理用户名提交并注册用户，value是用户输入的用户名
   isConnecting.value = true
@@ -168,7 +168,7 @@ function handleSubmitName(value) {
     socket.emit('register', { user_id: userId.value, name: userName.value })
     isConnecting.value = false
   } else {
-    socket.connect() //打开socket
+    socket.connect() //打开socket, 显示调用
   }
 
 }
@@ -271,7 +271,7 @@ watch(state.systemTrigger, ([ newval ]) => {
   }
   
 })
-//钩子设置初始值并检查连接状态
+//钩子设置初始值并检查连接状态，如果没有和服务器是连接状态，那么输入姓名提示框
 onMounted(() => {
   
   if(state.connected) {
@@ -284,7 +284,7 @@ onMounted(() => {
     const new_id = getSimpleId()
     userId.value = new_id
     store.setId(new_id)
-
+    //弹出姓名输入提示框
     isDialogShown.value = true
 
   }

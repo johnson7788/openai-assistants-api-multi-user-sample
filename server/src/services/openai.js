@@ -80,7 +80,7 @@ async function addMessage({
     userID,
     name,
 }) {
-
+    //添加消息到线程
     try {
 
         // add metadata
@@ -107,7 +107,7 @@ async function addMessage({
 async function getMessages({
     threadId,
 }) {
-
+    //根据线程获取消息
     try {
 
         const messages = await openai.beta.threads.messages.list(threadId)

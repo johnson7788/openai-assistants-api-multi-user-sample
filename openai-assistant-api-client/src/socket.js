@@ -33,7 +33,7 @@ export const state = reactive({
 
 const url = `http://${import.meta.env.VITE_SERVER_IPADDRESS}:${import.meta.env.VITE_SERVER_PORT}`
 
-//初始化socket
+//初始化socket,需要socket.connect() //打开socket, 显示调用
 export const socket = io(url, { autoConnect: false })
 //监听来自服务器的消息
 socket.on('connect', () => {

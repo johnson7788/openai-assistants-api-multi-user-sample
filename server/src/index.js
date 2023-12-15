@@ -53,7 +53,7 @@ app.post('/stream', async (req, res) => {
     try {
 
         const message_id = id
-        
+        //添加消息到线程
         const ret_message = await openai.addMessage({ 
             threadId: thread_id, 
             message: content, 
@@ -61,15 +61,15 @@ app.post('/stream', async (req, res) => {
             userId: user_id, 
             name: name 
         })
-
-        console.log('message', ret_message)
+        //openai返回的消息
+        console.log('Openai 返回的消息message: ', ret_message)
 
         const run = await openai.startRun({ 
             threadId: thread_id,
-            instructions: assistant_instructions + `\nPlease address the user as ${name}.\nToday is ${new Date()}.`
+            instructions: assistant_instructions + `\nPlease address the user as ${name}.`
         })
-
-        console.log('run', run)
+        //真正开始推理
+        console.log('调用Openai的Run', run)
 
         const run_id = run.id
 
@@ -87,16 +87,16 @@ app.post('/stream', async (req, res) => {
 
         do {
 
-            console.log(`Loop: ${count}`)
+            console.log(`循环获取最新的消息，循环次数: ${count}`)
 
             const run_data = await openai.getRun({ threadId: thread_id, runId: run_id })
-
+            //不断获取最新的状态
             const status = run_data.status
-
+            
             console.log(`Status: ${status} ${(new Date()).toLocaleTimeString()}`)
 
             if(status === 'completed') {
-
+                //完成状态
                 const messages = await openai.getMessages({ threadId: thread_id })
 
                 console.log('messages-show', messages)
@@ -115,7 +115,7 @@ app.post('/stream', async (req, res) => {
                         const output_data = msg.content[0].text.value
                         const split_words = output_data.split(' ')
 
-                        // We will simulate streaming per word! :P
+                        //模拟的流式生成。。。
                         for(let word of split_words) {
                             res.write(`${word} `)
                             await utils.wait(TIME_DELAY)
@@ -209,12 +209,12 @@ io.on('connection', (socket) => {
     users.push({ id: socket_id, user_id: '', name: '' })
 
     socket.on('disconnect', async () => {
-
+        //当用户断开连接时，并且一个用户也没有的时候，才删掉线程
         console.log('disconnect被触发', socket_id)
         //"170235151130941am2acj1i7j","Johnson"
         const { user_id, name } = users.find((user) => user.id === socket_id)
         // 通知除自己之外的所有连接的客户端发送消息，告诉已经离开
-        socket.broadcast.emit('leave', { user_id, name })
+        // socket.broadcast.emit('leave', { user_id, name })
         
         users = users.filter(user => user.id !== socket_id)
         
@@ -304,7 +304,7 @@ io.on('connection', (socket) => {
         socket_user_id = user_id
         socket_user_name = name
         //广播某用户加入
-        socket.broadcast.emit('join', { user_id, name })
+        // socket.broadcast.emit('join', { user_id, name })
         // 发送欢迎
         socket.emit('welcome')
 
@@ -314,10 +314,10 @@ io.on('connection', (socket) => {
         //收到前端传入过来的问题
         console.log('收到消息', message)
         // 广播消息？？为啥广播
-        socket.broadcast.emit('message', message)
+        // socket.broadcast.emit('message', message)
 
         socket.emit('ai-start')
-        socket.broadcast.emit('ai-start')
+        // socket.broadcast.emit('ai-start')
 
         try {
 
@@ -446,7 +446,7 @@ io.on('connection', (socket) => {
     
             } while(!flagFinish)
 
-            socket.broadcast.emit('message-list', messages_items)
+            // socket.broadcast.emit('message-list', messages_items)
             socket.emit('message-list', messages_items)
 
         } catch(error) {
@@ -462,13 +462,13 @@ io.on('connection', (socket) => {
                 created_at: Date.now()
             }
 
-            socket.broadcast.emit('message', error_message)
+            // socket.broadcast.emit('message', error_message)
             socket.emit('message', error_message)
 
         } finally {
 
             socket.emit('ai-end')
-            socket.broadcast.emit('ai-end')
+            // socket.broadcast.emit('ai-end')
 
         }
 
