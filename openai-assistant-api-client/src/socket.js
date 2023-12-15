@@ -39,7 +39,7 @@ export const socket = io(url, { autoConnect: false })
 socket.on('connect', () => {
 
     state.id = socket.id
-
+    // 打印时间戳
     console.log('connect', socket.id, (new Date()).toLocaleTimeString())
 
     state.connected = true

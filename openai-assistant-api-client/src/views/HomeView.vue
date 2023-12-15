@@ -27,11 +27,12 @@ const isConnecting = ref(false)  //控制当前是否是连接状态，即打开
 const isStreaming = ref(false) //判断是不是流式处理
 //接收子组件的事件
 function handleToggle(flag) {
-  console.log("是否是流式处理", flag)
+  console.log(new Date().toLocaleString(),"是否是流式处理:", flag)
   isStreaming.value = flag
 }
 
 function sendToSocket(user_message) {
+  console.log(new Date().toLocaleString(),"发送消息到socket", user_message)
   //先把用户消息放入消息事件，然后发送socket请求
   state.messageEvents.push(user_message)
   //发送用户消息到server，事件名称是message
@@ -44,6 +45,7 @@ function sendToSocket(user_message) {
 }
 
 async function sendToStream(user_message) {
+  console.log(new Date().toLocaleString(),"发送消息到stream", user_message)
   //首先将 isAIProcessing.value 设置为 true，表示 AI 正在处理中。
   isAIProcessing.value = true
   //然后将用户消息 user_message 添加到 state.messageEvents 中，
@@ -123,8 +125,7 @@ function handleSend() {
   if(isAIProcessing.value) {
     return
   }
-
-  console.log("用户开始发送消息，当前时间是: ",Date.now())
+  console.log(new Date().toLocaleString(),"用户开始发送消息")
   //content是用户输入的内容， name： 用户名
   const user_message = { 
     user_id: userId.value, 
@@ -158,6 +159,7 @@ function handleSend() {
 }
 // 接收最弹出框传入来的名称
 function handleSubmitName(value) {
+  console.log(new Date().toLocaleString(),"接收到用户名")
   //处理用户名提交并注册用户，value是用户输入的用户名
   isConnecting.value = true
   //更新ref中的userName
@@ -168,12 +170,13 @@ function handleSubmitName(value) {
     socket.emit('register', { user_id: userId.value, name: userName.value })
     isConnecting.value = false
   } else {
-    socket.connect() //打开socket, 显示调用
+    socket.connect() //打开socket, 
   }
 
 }
 
 function resetScroll() {
+  console.log(new Date().toLocaleString(),"滚动屏幕")
   //函数来滚动消息列表, setTimeout() 方法将消息列表滚动到底部
   setTimeout(() => {
     messageRef.value.scrollTop = messageRef.value.scrollHeight
@@ -182,6 +185,7 @@ function resetScroll() {
 }
 
 function showSystemMessage(name, stype) {
+  console.log(new Date().toLocaleString(),"显示系统消息")
   //函数来显示系统消息,将系统消息添加到消息列表
   const message_text = stype === 'welcome' ? `Welcome ${name}` : stype === 'disconnect' ? `You are disconnected from the server` : `${name} has ${stype === 'join' ? 'joined' : 'left'} the discussion`
 
@@ -201,6 +205,7 @@ function showSystemMessage(name, stype) {
 }
 
 function getBackgroundClass(role, user_id) {
+  console.log(new Date().toLocaleString(),"获取背景样式")
   //函数根据用户/AI 设置消息的背景颜色
   if(role === 'system') {
     return 'system'
@@ -212,13 +217,16 @@ function getBackgroundClass(role, user_id) {
 }
 //实现处理 AI 处理开始/结束事件的函数
 function handleAIOnStart() {
+  console.log(new Date().toLocaleString(),"AI开始处理")
   isAIProcessing.value = true
 }
 function handleAIOnEnd() {
+  console.log(new Date().toLocaleString(),"AI结束处理")
   isAIProcessing.value = false
 }
 // 当state.messageEvents有变化时，更新messages，即更新消息列表，返回排序后的messages，state.messageEvents来自socket.js
 const messages = computed(() => {
+  console.log(new Date().toLocaleString(),"计算messages")
   return state.messageEvents.sort((a, b) => {
     if(a.created_at > b.created_at) return 1
     if(a.created_at < b.created_at) return -1
@@ -228,7 +236,7 @@ const messages = computed(() => {
 
 //监控用户消息state.connectTrigger状态是否改变，如果是连接状态，那么注册用户
 watch(state.connectTrigger, () => {
-    
+  console.log(new Date().toLocaleString(),"监听用户消息,注册用户")
   socket.emit('register', { user_id: userId.value, name: userName.value })
   isConnecting.value = false
 
@@ -244,7 +252,7 @@ watch(state.messageTrigger, () => {
     // "iat": 1702517965736
 // }，如果发生改变，把新的值传入，传入的新值被取数组的第1个元素作为值，传入，因为state.systemTrigger是1个列表，我们只需取最新的消息即可
 watch(state.systemTrigger, ([ newval ]) => {
-    
+  console.log(new Date().toLocaleString(),"监听系统消息，选择多种任务")
   console.log("system-trigger",  newval.type, newval.data)
 
   switch(newval.type) {
@@ -273,7 +281,7 @@ watch(state.systemTrigger, ([ newval ]) => {
 })
 //钩子设置初始值并检查连接状态，如果没有和服务器是连接状态，那么输入姓名提示框
 onMounted(() => {
-  
+  console.log(new Date().toLocaleString(),"onMounted, 判断是否存在用户还是弹出用户框")
   if(state.connected) {
 
     userId.value = store.id
