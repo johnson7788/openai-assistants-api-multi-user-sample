@@ -4,7 +4,7 @@ import { computed, toRefs } from 'vue'
 const props = defineProps({
     checked: {
         type: Boolean,
-        default: false,
+        default: true,
     },
 })
 //使用 defineEmits 定义了组件的事件，其中包含了一个名为 change 的事件。change事件会被emit触发，然后将信息传递给父组件。

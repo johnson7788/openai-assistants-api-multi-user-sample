@@ -39,7 +39,7 @@ app.get('/ping', (req, res) => {
 })
 
 app.post('/stream', async (req, res) => {
-
+    console.log(new Date().toLocaleTimeString(),'Stream请求')
     const { user_id, name, content, role, id, created_at } = req.body
 
     if(!user_id || !name || !content || !role || !id || !created_at) {
@@ -200,6 +200,7 @@ app.post('/stream', async (req, res) => {
 //这是 Socket.IO 服务器端代码，它监听客户端的连接事件，并在有新的客户端连接时执行回调函数。
 io.on('connection', (socket) => {
     //当用户输入用户名后，这里开接收，eg: qZkNVy9bev3IxnR_AAAB
+    console.log(new Date().toLocaleTimeString(),'Connection监听中')
     console.log('用户的id是', socket.id)
 
     let socket_id = socket.id
@@ -210,6 +211,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', async () => {
         //当用户断开连接时，并且一个用户也没有的时候，才删掉线程
+        console.log(new Date().toLocaleTimeString(),'disconnect触发')
         console.log('disconnect被触发', socket_id)
         //"170235151130941am2acj1i7j","Johnson"
         const { user_id, name } = users.find((user) => user.id === socket_id)
@@ -236,6 +238,7 @@ io.on('connection', (socket) => {
     })
     //异步，监听register事件，当用户首次输入用户名的时候
     socket.on('register', async (params) => {
+        console.log(new Date().toLocaleTimeString(),'register')
         //params :{user_id: "170235151130941am2acj1i7j",name: "Johnson",}
         console.log('用户注册', params)
 
@@ -311,6 +314,7 @@ io.on('connection', (socket) => {
     })
 
     socket.on('message', async (message) => {
+        console.log(new Date().toLocaleTimeString(),'message收到')
         //收到前端传入过来的问题
         console.log('收到消息', message)
         // 广播消息？？为啥广播
@@ -484,6 +488,7 @@ server.listen(process.env.SERVER_PORT, () => {
 })
 //一个处理进程接收到 SIGINT 信号（通常是通过按下 Ctrl + C 触发）时的事件监听器，它在接收到该信号时执行回调函数。
 process.on('SIGINT', async () => {
+    console.log(new Date().toLocaleTimeString(),'Server process terminated触发：SIGINT')
     console.log("\nTest Server process terminated.");
 
     // cleanup
@@ -502,6 +507,7 @@ process.on('SIGINT', async () => {
 })
 
 process.on('SIGTERM', async () => {
+    console.log(new Date().toLocaleTimeString(),'Server process terminated触发：SIGTERM')
     console.log("\nTest Server process terminated.");
 
     // cleanup

@@ -236,7 +236,7 @@ const messages = computed(() => {
 
 //监控用户消息state.connectTrigger状态是否改变，如果是连接状态，那么注册用户
 watch(state.connectTrigger, () => {
-  console.log(new Date().toLocaleString(),"监听用户消息,注册用户")
+  console.log(new Date().toLocaleString(),"监听连接消息,注册用户")
   socket.emit('register', { user_id: userId.value, name: userName.value })
   isConnecting.value = false
 
@@ -257,7 +257,7 @@ watch(state.systemTrigger, ([ newval ]) => {
 
   switch(newval.type) {
     case 'welcome':
-      isDialogShown.value = false
+      isDialogShown.value = false //关闭用户名对话框
       inputRef.value.focus()
       showSystemMessage(userName.value, newval.type)
       break
