@@ -333,7 +333,7 @@ io.on('connection', (socket) => {
             //  开启一个openAI的runner
             const run = await openai.startRun({ 
                 threadId: thread_id,
-                instructions: assistant_instructions + `\nPlease address the user as ${socket_user_name}.\nToday is ${new Date()}.`
+                instructions: assistant_instructions + `\nPlease address the user as ${socket_user_name}.`
              })
 
             console.log('openAI的runner已开启，状态是', run)
