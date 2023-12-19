@@ -54,7 +54,11 @@ app.get('/ping', (req, res) => {
 
 app.post('/stream', async (req, res) => {
     console.log(new Date().toLocaleTimeString(),'收到了Stream请求')
-    const { user_id, name, content, role, id, created_at } = req.body
+    const { user_id, content } = req.body
+    let created_at = Date.now()
+    let id = utils.getSimpleId()
+    let role = "user"
+    let name = "用户"
 
     if(!user_id || !name || !content || !role || !id || !created_at) {
         res.status(400).send('请求数据错误，部分字段为空的，请检查');
@@ -106,10 +110,14 @@ app.post('/stream', async (req, res) => {
         })
         //openai返回的消息
         console.log('Openai 返回的消息message: ', ret_message)
-
+        //如果添加了用户，那么
+        let instructions = assistant_instructions
+        if (name !== "用户"){
+            instructions = assistant_instructions + `\nPlease address the user as ${name}.`
+        }
         const run = await openai.startRun({ 
             threadId: thread_id,
-            instructions: assistant_instructions + `\nPlease address the user as ${name}.`
+            instructions: instructions
         })
         //真正开始推理
         console.log('调用Openai的Run', run)
@@ -240,6 +248,127 @@ app.post('/stream', async (req, res) => {
     }
 
 })
+
+app.post('/simulate', async (req, res) => {
+    console.log(new Date().toLocaleTimeString(),'收到了Stream请求')
+    const { user_id, content } = req.body
+    let created_at = Date.now()
+    let id = utils.getSimpleId()
+    let role = "user"
+    let name = "用户"
+
+    if(!user_id || !name || !content || !role || !id || !created_at) {
+        res.status(400).send('请求数据错误，部分字段为空的，请检查');
+        return
+    }
+
+    anwserObj = {
+        "hello": "Hello there! Ready to dive into the enchanting world of fragrances? What can I assist you with today in the realm of scents? 😊🌸",
+        "你好": "你好！在这香氛的世界里，我就是你的向导，BeautyChat2.0！随时准备为你揭开各种香水的神秘面纱。你今天想知道点什么呢？有关香氛的任何问题，尽管向我提问吧！🌸👃✨",
+        "木质东方调香水推荐": "好的，Johnson，有一款叫做“观夏昆仑煮雪”的香水，它的香调是木质东方调，但是前调中带有香柠檬的味道，应该可以满足你对橘子香味的期待。它的香味描述中也有提到“柑橘”，给人深沉、清凉、甜甜的感觉，非常适合夏日使用。你可以通过这个链接【13†查看详情】来获取更多信息。希望这款香水能让你的夏天更加清新怡人！"
+    }
+    const output_data = anwserObj[content]
+    
+    // Note: 
+    // For simplicity or laziness, I will not be checking if assistant or thread is alive.
+    
+    try {
+
+
+        let flagFinish = false
+
+        let MAX_COUNT = 2 * 600 // 120s 
+        let TIME_DELAY = 100 // 100ms
+        let count = 0
+
+        do {
+            //不断获取最新的状态
+            const status = 'completed'
+            
+            console.log(`Status: ${status} ${(new Date()).toLocaleTimeString()}`)
+
+            if(status === 'completed') {
+                console.log(`生成的结果是: ${output_data}`)
+                const split_words = output_data.split(' ')
+
+                //模拟的流式生成。。。
+                for(let word of split_words) {
+                    res.write(`${word} `)
+                    await utils.wait(TIME_DELAY)
+                }
+
+                flagFinish = true
+            
+            } else if(status === 'requires_action'){
+                
+                console.log('run-data', run_data)
+
+                const required_action = run_data.required_action
+                const required_tools = required_action.submit_tool_outputs.tool_calls
+
+                console.log('required-action', required_action)
+                console.log('required-tools', required_tools)
+                
+                const tool_output_items = []
+
+                required_tools.forEach((rtool) => {
+                    
+                    let tool_output = { status: 'error', message: 'No function found' }
+
+                    tool_output_items.push({
+                        tool_call_id: rtool.id,
+                        output: JSON.stringify(tool_output)
+                    })
+
+                })
+
+                console.log('tools-output', tool_output_items)
+
+                const ret_tool = await submitOutputs({
+                    threadId: thread_id,
+                    runId: run_id,
+                    tool_outputs: tool_output_items
+                })
+
+                console.log('ret-tool', ret_tool)
+
+            } else if(status === 'expired' || status === 'cancelled' || status === 'failed') {
+                
+                flagFinish = true
+
+            }
+            
+            if(!flagFinish) {
+
+                count++
+                
+                if(count >= MAX_COUNT) {
+
+                    flagFinish = true
+
+                } else {
+
+                    await utils.wait(TIME_DELAY)
+
+                }
+
+            }
+
+        } while(!flagFinish)
+
+        res.end()
+
+    } catch(error) {
+
+        console.log(error.name, error.message)
+
+        res.sendStatus(400)
+        return
+
+    }
+
+})
+
 
 async function create_thread(){
     console.log(new Date().toLocaleTimeString(),'register')
