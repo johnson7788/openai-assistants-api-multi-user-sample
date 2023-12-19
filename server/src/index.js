@@ -55,6 +55,7 @@ app.get('/ping', (req, res) => {
 app.post('/stream', async (req, res) => {
     console.log(new Date().toLocaleTimeString(),'收到了Stream请求')
     const { user_id, content } = req.body
+    console.log(new Date().toLocaleTimeString(),`用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
     let id = utils.getSimpleId()
     let role = "user"
@@ -252,6 +253,7 @@ app.post('/stream', async (req, res) => {
 app.post('/simulate', async (req, res) => {
     console.log(new Date().toLocaleTimeString(),'收到了Stream请求')
     const { user_id, content } = req.body
+    console.log(new Date().toLocaleTimeString(),`用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
     let id = utils.getSimpleId()
     let role = "user"
