@@ -269,8 +269,11 @@ app.post('/simulate', async (req, res) => {
     }
     const output_data = anwserObj[content]
     
-    // Note: 
-    // For simplicity or laziness, I will not be checking if assistant or thread is alive.
+    res.writeHead(200, {
+        "Content-Type": "text/event-stream;charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+    })
     
     try {
 
