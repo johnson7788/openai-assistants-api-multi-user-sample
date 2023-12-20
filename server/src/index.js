@@ -4,6 +4,7 @@ const http = require('http') //导入 HTTP 模块
 const cors = require('cors') //导入 CORS 模块
 const app = express() //创建一个 Express 应用程序实例
 const server = http.createServer(app)
+const mysql = require('mysql');
 
 const utils = require('./lib/utils')
 const openai = require('./services/openai')
@@ -11,8 +12,9 @@ const openai = require('./services/openai')
 //读取.env文件，然后使用process.env.SERVER_PORT，就可以使用了
 require('dotenv').config()
 
-// 保存每个对话的状态
+// 保存每个对话的状态, name2picture名称对应的图片,异步查询，比较慢
 let users = {}
+let name2picture = {};
 
 app.use(cors())
 //app.use(bodyParser.json())
@@ -26,6 +28,76 @@ app.use((err, req, res, next) => {
     res.status(500).send('Internal Server Error');
 });
 
+const connection = mysql.createConnection({
+    host     : process.env.MYSQL_HOST,
+    user     : process.env.MYSQL_USER,
+    password : process.env.MYSQL_PASS,
+    port : 3306,
+    database : process.env.MYSQL_DB
+  });
+connection.connect();
+
+connection.query('SELECT * FROM Product WHERE shop_url != ""', function (error, results, fields) {
+    if (error) {
+        console.log(`查询时发生了错误${error}`);
+      } else {
+        results.forEach(element => {
+          let name = element.name
+          let alias = element.alias
+          let picture = element.image
+          name2picture[name] = picture
+          name2picture[alias] = picture
+          //name去掉品牌名
+          let brand = element.brand
+          name = name.replace(brand, "")
+          let split_name = name.split(" ")
+          if (split_name.length > 1) {
+            last_word = split_name[split_name.length-1]
+            var isNumeric = /^\d+$/.test(last_word);
+            //如果最后1个词是数组，那么去掉
+            if (isNumeric) {
+              split_name.pop()
+              name = split_name.join(" ").trim()
+              name2picture[name] = picture
+              name2picture[split_name.join("").trim()] = picture
+            }
+          }
+          name2picture[name] = picture
+          let english_name = element.english
+          if (english_name != "") {
+            name = name.replace(english_name, "").trim()
+          }
+          //去掉首尾的空格
+          name2picture[name] = picture
+          //如果brand包含括号
+          if (brand.includes("（") && brand.includes("）")) {
+            //使用括号前面的中文
+            let brand_cn = brand.split("（")
+            brand_cn = brand_cn[0]
+            name = name.replace(brand_cn, "")
+            name2picture[name] = picture
+          }
+        });
+      }
+});
+
+connection.end();  
+
+function findMsgImage(msg) {
+    //根据消息查找对应的图片
+    let image_path = ""
+    console.log("开始查询消息中的商品对应的图片:", msg)
+    var keys = Object.keys(name2picture);
+    console.log(`共收集到${keys.length} 条数据`)
+    //遍历name2picture所有key，查看key是否在msg中，如果存在，打印图片
+    keys.forEach(key =>{
+      if (msg.includes(key)){
+        console.log(`${key}的图片是${name2picture[key]}`)
+        image_path = name2picture[key]
+      }
+    })
+    return image_path
+}
 
 // 创建定时线程，每隔一定时间检测对象是否改变
 setInterval(() => {
@@ -318,7 +390,11 @@ app.post('/simulate', async (req, res) => {
                     res.write(`${word} `)
                     await utils.wait(TIME_DELAY)
                 }
-
+                //查找和返回图片
+                const image_path = findMsgImage(msg=output_data)
+                if (image_path) {
+                    res.write(`<img src="${image_path}" />`)
+                }
                 flagFinish = true
 
             } else if (status === 'requires_action') {
