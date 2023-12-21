@@ -88,7 +88,7 @@ connection.query('SELECT * FROM Product WHERE shop_url != ""', function (error, 
                 "title": name,
                 "img": picture,
                 "url": shop_url,
-                "price":price
+                "price": price
             }
         });
         //去掉name是1个字的
@@ -117,16 +117,16 @@ function findMsgImage(msg) {
         }
     })
     let three_info = []
-    if (image_path.length === 0){
+    if (image_path.length === 0) {
         console.log(`未找到消息对应的图片, 随机选取3张图片消息是: ${msg}`)
-        three_info = utils.getRandomProperties(picture2info,3)
-    }else if (image_path.length <3){
+        three_info = utils.getRandomProperties(picture2info, 3)
+    } else if (image_path.length < 3) {
         console.log(`找到图片小于3个，补全到3个图片消息是: ${msg}`)
         three_info = image_path.map(path => picture2info[path])
-        three_info = three_info.concat(utils.getRandomProperties(picture2info,3-image_path.length))
-    }else{
+        three_info = three_info.concat(utils.getRandomProperties(picture2info, 3 - image_path.length))
+    } else {
         console.log(`找到图片大于或等于个，直接截取3个即可: ${msg}`)
-        let three_path = image_path.slice(0,3)
+        let three_path = image_path.slice(0, 3)
         //获取path对应的数据信息, name2picture
         three_info = three_path.map(path => picture2info[path])
     }
@@ -219,7 +219,8 @@ app.post('/stream', async (req, res) => {
 
     // Note: 
     // For simplicity or laziness, I will not be checking if assistant or thread is alive.
-
+    const intention = await getIntention(content)
+    const more_question = await guess_quesion(question, anwser)
     try {
 
         const message_id = id
@@ -297,9 +298,12 @@ app.post('/stream', async (req, res) => {
                             await utils.wait(TIME_DELAY)
                         }
                         //查找和返回图片
-                        const image_path = findMsgImage(output_content)
-                        if (image_path) {
-                            res.write(`data: [DONE]:${image_path}\n\n`)
+                        //如果是推荐，那么查找图片和返回猜你想问
+                        if (intention === 'recommend') {
+                            //查找和返回图片
+                            let three_info = findMsgImage(output_content)
+                            res.write(`data: [IMG]:${JSON.stringify(three_info)}\n\n`)
+                            res.write(`data: [DONE]:${JSON.stringify(more_question)}\n\n`)
                         } else {
                             res.write(`data: [DONE]:\n\n`)
                         }
@@ -389,6 +393,23 @@ function getIntention_simulate(question) {
     return response ? response : 'recommend';
 }
 
+async function getIntention(question) {
+    question = question.replace("\n", ".").trim()
+    const messages = [
+        { role: 'system', content: '根据用户的提问判断用户的聊天意图，如果涉及到了商品或香水，请返回是，否则返回否。只返回是或否即可。' },
+        { role: 'user', content: `用户的提问: ${question}` }
+    ]
+    const response = await openai.chatCompletion({ messages })
+    const content = response["message"]["content"]
+    //二分类意图
+    if (content.includes("是")){
+        let intention = "recommend"
+    }else {
+        let intention = "welcome"
+    }
+    return contentList
+}
+
 function guess_quesion_sumulate(question) {
     const responses = {
         '木质东方调香水推荐': ['什么是木质调香水?', '木质调香水的品种有哪些？', '木质调的香味类似什么？'],
@@ -398,6 +419,27 @@ function guess_quesion_sumulate(question) {
     }
     const response = responses[question];
     return response;
+}
+
+async function guess_quesion(question,anwser) {
+    question = question.replace("\n", ".").trim()
+    anwser = anwser.replace("\n", ".").trim()
+    const messages = [
+        { role: 'system', content: '你是一个可以根据给定内容生成问题的机器人，下面是一对用户提问和回答内容，请根据用户提问和回答，请写出用户可能还想问的3个相关问题。返回的格式类似这样，每个问题是1行，开头用Q加上序号表示。Q1:xxx\nQ2:yyyy\Q3:zzzz。现在开始:' },
+        { role: 'user', content: `用户提问: ${question}\n回答: ${anwser}` }
+    ]
+    const response = await openai.chatCompletion({ messages })
+    const content = response["message"]["content"]
+    //content变成列表
+    let contentList = content.split("\n")
+    //检查是否包含Q1,Q2,Q3
+    contentList.forEach((item, index) => {
+        if (item.startsWith("Q")) {
+            //去掉Q1: Q2:和 Q3:
+            contentList[index] = contentList[index].substring(2)
+            }
+    })
+    return contentList
 }
 
 app.post('/simulate', async (req, res) => {
@@ -548,16 +590,7 @@ app.post('/guess', async (req, res) => {
         res.status(401).send('请求的参数中没有quesion或anwser字段');
         return
     }
-    question = question.replace("\n", ".").trim()
-    anwser = anwser.replace("\n", ".").trim()
-    const messages = [
-        { role: 'system', content: '你是一个可以根据给定内容生成问题的机器人，下面是一对用户提问和回答内容，请根据用户提问和回答，请写出用户可能还想问的3个相关问题。返回的格式类似这样，每个问题是1行，开头用Q加上序号表示。Q1:xxx\nQ2:yyyy\Q3:zzzz。现在开始:' },
-        { role: 'user', content: `用户提问: ${question}\n回答: ${anwser}` }
-    ]
-    const response = await openai.chatCompletion({ messages })
-    const content = response["message"]["content"]
-    //content变成列表
-    const contentList = content.split("\n")
+    let contentList = await guess_quesion(question, anwser)
     const data = {
         code: '0000',
         msg: '成功',
