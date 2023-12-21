@@ -17,6 +17,8 @@ let users = {}
 let name2picture = {};
 
 app.use(cors())
+//设置静态目录
+app.use(express.static('public'));
 //app.use(bodyParser.json())
 //使用 body-parser 模块的 json() 函数来解析 JSON 数据。这里的配置选项 {limit: '50mb'} 表示允许请求数据的最大体积为 50MB。
 app.use(bodyParser.json({ limit: '50mb' }))
@@ -29,59 +31,59 @@ app.use((err, req, res, next) => {
 });
 
 const connection = mysql.createConnection({
-    host     : process.env.MYSQL_HOST,
-    user     : process.env.MYSQL_USER,
-    password : process.env.MYSQL_PASS,
-    port : 3306,
-    database : process.env.MYSQL_DB
-  });
+    host: process.env.MYSQL_HOST,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASS,
+    port: 3306,
+    database: process.env.MYSQL_DB
+});
 connection.connect();
 
 connection.query('SELECT * FROM Product WHERE shop_url != ""', function (error, results, fields) {
     if (error) {
         console.log(`查询时发生了错误${error}`);
-      } else {
+    } else {
         results.forEach(element => {
-          let name = element.name
-          let alias = element.alias
-          let picture = element.image
-          name2picture[name] = picture
-          name2picture[alias] = picture
-          //name去掉品牌名
-          let brand = element.brand
-          name = name.replace(brand, "")
-          let split_name = name.split(" ")
-          if (split_name.length > 1) {
-            last_word = split_name[split_name.length-1]
-            var isNumeric = /^\d+$/.test(last_word);
-            //如果最后1个词是数组，那么去掉
-            if (isNumeric) {
-              split_name.pop()
-              name = split_name.join(" ").trim()
-              name2picture[name] = picture
-              name2picture[split_name.join("").trim()] = picture
-            }
-          }
-          name2picture[name] = picture
-          let english_name = element.english
-          if (english_name != "") {
-            name = name.replace(english_name, "").trim()
-          }
-          //去掉首尾的空格
-          name2picture[name] = picture
-          //如果brand包含括号
-          if (brand.includes("（") && brand.includes("）")) {
-            //使用括号前面的中文
-            let brand_cn = brand.split("（")
-            brand_cn = brand_cn[0]
-            name = name.replace(brand_cn, "")
+            let name = element.name
+            let alias = element.alias
+            let picture = element.image
             name2picture[name] = picture
-          }
+            name2picture[alias] = picture
+            //name去掉品牌名
+            let brand = element.brand
+            name = name.replace(brand, "")
+            let split_name = name.split(" ")
+            if (split_name.length > 1) {
+                last_word = split_name[split_name.length - 1]
+                var isNumeric = /^\d+$/.test(last_word);
+                //如果最后1个词是数组，那么去掉
+                if (isNumeric) {
+                    split_name.pop()
+                    name = split_name.join(" ").trim()
+                    name2picture[name] = picture
+                    name2picture[split_name.join("").trim()] = picture
+                }
+            }
+            name2picture[name] = picture
+            let english_name = element.english
+            if (english_name != "") {
+                name = name.replace(english_name, "").trim()
+            }
+            //去掉首尾的空格
+            name2picture[name] = picture
+            //如果brand包含括号
+            if (brand.includes("（") && brand.includes("）")) {
+                //使用括号前面的中文
+                let brand_cn = brand.split("（")
+                brand_cn = brand_cn[0]
+                name = name.replace(brand_cn, "")
+                name2picture[name] = picture
+            }
         });
-      }
+    }
 });
 
-connection.end();  
+connection.end();
 
 function findMsgImage(msg) {
     //根据消息查找对应的图片
@@ -90,11 +92,11 @@ function findMsgImage(msg) {
     var keys = Object.keys(name2picture);
     console.log(`共收集到${keys.length} 条数据`)
     //遍历name2picture所有key，查看key是否在msg中，如果存在，打印图片
-    keys.forEach(key =>{
-      if (msg.includes(key)){
-        console.log(`${key}的图片是${name2picture[key]}`)
-        image_path = name2picture[key]
-      }
+    keys.forEach(key => {
+        if (msg.includes(key)) {
+            console.log(`${key}的图片是${name2picture[key]}`)
+            image_path = name2picture[key]
+        }
     })
     return image_path
 }
@@ -169,7 +171,7 @@ app.post('/stream', async (req, res) => {
             assistant_name,
             assistant_instructions
         }
-    } else if (users[user_id].thread_id === ""){
+    } else if (users[user_id].thread_id === "") {
         let result = await create_thread()
         thread_id = result.thread_id
         assistant_name = users[user_id].assistant_name
@@ -258,10 +260,16 @@ app.post('/stream', async (req, res) => {
 
                         //模拟的流式生成。。。
                         for (let word of split_words) {
-                            res.write(`${word} `)
+                            res.write(`data: ${word} \n\n`)
                             await utils.wait(TIME_DELAY)
                         }
-
+                        //查找和返回图片
+                        const image_path = findMsgImage(msg=output_data)
+                        if (image_path) {
+                            res.write(`data: [DONE]:${image_path}\n\n`)
+                        } else {
+                            res.write(`data: [DONE]:\n\n`)
+                        }
                     }
 
                 }
@@ -387,13 +395,15 @@ app.post('/simulate', async (req, res) => {
 
                 //模拟的流式生成。。。
                 for (let word of split_words) {
-                    res.write(`${word} `)
+                    res.write(`data: ${word} \n\n`)
                     await utils.wait(TIME_DELAY)
                 }
                 //查找和返回图片
-                const image_path = findMsgImage(msg=output_data)
+                const image_path = findMsgImage(msg = output_data)
                 if (image_path) {
-                    res.write(`<img src="${image_path}" />`)
+                    res.write(`data: [DONE]:${image_path}\n\n`)
+                } else {
+                    res.write(`data: [DONE]:\n\n`)
                 }
                 flagFinish = true
 
