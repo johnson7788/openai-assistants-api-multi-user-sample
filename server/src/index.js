@@ -13,8 +13,10 @@ const openai = require('./services/openai')
 require('dotenv').config()
 
 // 保存每个对话的状态, name2picture名称对应的图片,异步查询，比较慢
-let users = {}
+let users = {};
 let name2picture = {};
+// 图片对应着所有返回信息，包括价格，店铺链接，还有商品名称
+let picture2info = {};
 
 app.use(cors())
 //设置静态目录
@@ -47,11 +49,10 @@ connection.query('SELECT * FROM Product WHERE shop_url != ""', function (error, 
             let name = element.name
             let alias = element.alias
             let picture = element.image
+            let price = element.price
+            let shop_url = element.shop_url
             name2picture[name] = picture
             name2picture[alias] = picture
-            //name去掉品牌名
-            let brand = element.brand
-            name = name.replace(brand, "")
             let split_name = name.split(" ")
             if (split_name.length > 1) {
                 last_word = split_name[split_name.length - 1]
@@ -64,25 +65,35 @@ connection.query('SELECT * FROM Product WHERE shop_url != ""', function (error, 
                     name2picture[split_name.join("").trim()] = picture
                 }
             }
-            name2picture[name] = picture
+            //name去掉品牌名
+            let brand = element.brand
+            let pure_name = name.replace(brand, "")
+            name2picture[pure_name] = picture
             let english_name = element.english
             if (english_name != "") {
-                name = name.replace(english_name, "").trim()
+                pure_name = pure_name.replace(english_name, "").trim()
             }
             //去掉首尾的空格
-            name2picture[name] = picture
+            name2picture[pure_name] = picture
             //如果brand包含括号
             if (brand.includes("（") && brand.includes("）")) {
                 //使用括号前面的中文
                 let brand_cn = brand.split("（")
                 brand_cn = brand_cn[0]
-                name = name.replace(brand_cn, "")
-                name2picture[name] = picture
+                pure_name = pure_name.replace(brand_cn, "")
+                name2picture[pure_name] = picture
+            }
+            //添加picture2info
+            picture2info[picture] = {
+                "title": name,
+                "img": picture,
+                "url": shop_url,
+                "price":price
             }
         });
         //去掉name是1个字的
         let keys = Object.keys(name2picture);
-        keys.forEach(key =>{
+        keys.forEach(key => {
             if (key.length == 1) {
                 delete name2picture[key]
             }
@@ -94,7 +105,7 @@ connection.end();
 
 function findMsgImage(msg) {
     //根据消息查找对应的图片
-    let image_path = ""
+    let image_path = []
     console.log("开始查询消息中的商品对应的图片:", msg)
     var keys = Object.keys(name2picture);
     console.log(`共收集到${keys.length} 条数据`)
@@ -102,10 +113,24 @@ function findMsgImage(msg) {
     keys.forEach(key => {
         if (msg.includes(key)) {
             console.log(`${key}的图片是${name2picture[key]}`)
-            image_path = name2picture[key]
+            image_path.push(name2picture[key])
         }
     })
-    return image_path
+    let three_info = []
+    if (image_path.length === 0){
+        console.log(`未找到消息对应的图片, 随机选取3张图片消息是: ${msg}`)
+        three_info = utils.getRandomProperties(picture2info,3)
+    }else if (image_path.length <3){
+        console.log(`找到图片小于3个，补全到3个图片消息是: ${msg}`)
+        three_info = image_path.map(path => picture2info[path])
+        three_info = three_info.concat(utils.getRandomProperties(picture2info,3-image_path.length))
+    }else{
+        console.log(`找到图片大于或等于个，直接截取3个即可: ${msg}`)
+        let three_path = image_path.slice(0,3)
+        //获取path对应的数据信息, name2picture
+        three_info = three_path.map(path => picture2info[path])
+    }
+    return three_info
 }
 
 // 创建定时线程，每隔一定时间检测对象是否改变
@@ -260,10 +285,11 @@ app.post('/stream', async (req, res) => {
                             break
                         }
                     } else {
-
                         const output_data = msg.content[0].text.value
                         console.log(`生成的结果是: ${output_data}`)
-                        const split_words = output_data.split(' ')
+                        let output_content = output_data.replace(/\【\d+†source\】/g, "");
+                        output_content = output_content.replace(/\【\d+†查看详情\】/g, "");
+                        const split_words = output_content.split(' ')
 
                         //模拟的流式生成。。。
                         for (let word of split_words) {
@@ -271,7 +297,7 @@ app.post('/stream', async (req, res) => {
                             await utils.wait(TIME_DELAY)
                         }
                         //查找和返回图片
-                        const image_path = findMsgImage(output_data)
+                        const image_path = findMsgImage(output_content)
                         if (image_path) {
                             res.write(`data: [DONE]:${image_path}\n\n`)
                         } else {
@@ -353,6 +379,27 @@ app.post('/stream', async (req, res) => {
 
 })
 
+function getIntention_simulate(question) {
+    const responses = {
+        'hello': 'welcome',
+        'hi': 'welcome',
+        '你好': 'welcome',
+    };
+    const response = responses[question.toLowerCase()];
+    return response ? response : 'recommend';
+}
+
+function guess_quesion_sumulate(question) {
+    const responses = {
+        '木质东方调香水推荐': ['什么是木质调香水?', '木质调香水的品种有哪些？', '木质调的香味类似什么？'],
+        '你知道哪款香水的味道是橘子味吗？': ['橘子味的香水还有哪些?', '橘子味香水效果如何？', '橘子味香水刺激吗?'],
+        '橘子味香水推荐': ['什么是橘子味香水?', '再推荐几款橘子味香水?', '橘子味香水价格怎么样？'],
+        '介绍三款迷人的香水': ['迷人的香水味道是什么？', '什么是迷人香水', '迷人香水品牌有哪些？'],
+    }
+    const response = responses[question];
+    return response;
+}
+
 app.post('/simulate', async (req, res) => {
     console.log(new Date().toLocaleTimeString(), '收到了Stream请求')
     const { user_id, content } = req.body
@@ -373,8 +420,11 @@ app.post('/simulate', async (req, res) => {
         "木质东方调香水推荐": "好的，Johnson，有一款叫做“观夏昆仑煮雪”的香水，它的香调是木质东方调，但是前调中带有香柠檬的味道，应该可以满足你对橘子香味的期待。它的香味描述中也有提到“柑橘”，给人深沉、清凉、甜甜的感觉，非常适合夏日使用。你可以通过这个链接【13†查看详情】来获取更多信息。希望这款香水能让你的夏天更加清新怡人！",
         "你知道哪款香水的味道是橘子味吗？": "哦，有款香水就是柑橘控你的菜！尝试一下“观夏昆仑煮雪”，它是一款中性香，规格30ml，价格498.0元，带有木质、芳香植物、清新辛辣以及你喜欢的柑橘味。这款香水的前调包含了香柠檬，杜松子和丝柏，绝对能让你感受到清新宜人的橘子香气。使用时，你可能会想象着东方文化的山河原野，感受到怀旧和温暖的情绪。它适用于各种场合，尤其是在家居香薰分享或是传统文化活动中。立刻就能拥抱它了，通过这个链接去把它带回家吧: [点我购买](https://detail.tmall.com/item.htm?abbucket=11&id=676539654541&rn=760fb2aa967606ede8027516fab139b9&skuId=4859629692517&spm=a1z10.3-b-s.w4011-24426768373.74.5a6435d7t1Pawn)【11†source】。嗯哼～带上这款香水，你也能闻着橘子味儿，感觉像是跟一位好友抱抱呢！",
         "橘子味香水推荐": " 噢，橘子的香味，那真是晴朗又可口哦！有款香水叫做“观夏昆仑煮雪”，它具有一丝丝的柑橘香味，在其他木质和芳香植物调性的映衬下，给你的嗅觉带来一种清新辛辣的体验。想象这样一个场景：微风中带来凉爽的橘香，就像一个炎炎夏日的避风港。使用这款香水，无疑会带来一股清新潇洒的气氛【13†source】。\n如果你想了解更多或者购买这款产品，可以点击这个链接进行探寻：[观夏昆仑煮雪香水](https://detail.tmall.com/item.htm?abbucket=11&id=676539654541&rn=760fb2aa967606ede8027516fab139b9&skuId=4859629692517&spm=a1z10.3-b-s.w4011-24426768373.74.5a6435d7t1Pawn)。开启橘子香氛之旅，你准备好了吗？ 🍊✨",
+        "介绍三款迷人的香水": "亲爱的香水爱好者，让我为您介绍三款迷人的香水：1. 闻献柔韧荆棘 - 这款香水充满了青草和芫荽的清新前调，中调则是玫瑰与牡丹的浓郁花香，而后调则由孜然、香根草及安息香构成，给人一种新鲜、温暖、神秘又迷人的体验。适合在家中自然清新的环境中使用，其特色在于混合了辛辣与温柔，就像是在花圃中想要采摘初绽玫瑰的感觉【9†链接】。为保持神秘感，我会慢慢揭晓其余两款推荐的香水，敬请期待我的下一个回复哦！✨🥳开始查询消息中的商品对应的图片: 亲爱的香水爱好者，让我为您介绍三款迷人的香水：1. 闻献柔韧荆棘 - 这款香水充满了青草和芫荽的清新前调，中调则是玫瑰与牡丹的浓郁花香，而后调则由孜然、香根草及安息香构成，给人一种新鲜、温暖、神秘又迷人的体验。适合在家中自然清新的环境中使用，其特色在于混合了辛辣与温柔，就像是在花圃中想要采摘初绽玫瑰的感觉【9†链接】。为保持神秘感，我会慢慢揭晓其余两款推荐的香水，敬请期待我的下一个回复哦！✨🥳"
     }
     const output_data = anwserObj[content]
+    const intention = getIntention_simulate(content)
+    const more_question = guess_quesion_sumulate(content)
 
     res.writeHead(200, {
         "Content-Type": "text/event-stream;charset=utf-8",
@@ -399,17 +449,22 @@ app.post('/simulate', async (req, res) => {
 
             if (status === 'completed') {
                 console.log(`生成的结果是: ${output_data}`)
-                const split_words = output_data.split(' ')
+                let output_content = output_data.replace(/\【\d+†source\】/g, "");
+                output_content = output_content.replace(/\【\d+†查看详情\】/g, "");
+                output_content = output_content.replace(/\【\d+†链接\】/g, "");
+                const split_words = output_content.split(' ')
 
                 //模拟的流式生成。。。
                 for (let word of split_words) {
                     res.write(`data: ${word} \n\n`)
                     await utils.wait(TIME_DELAY)
                 }
-                //查找和返回图片
-                let image_path = findMsgImage(output_data)
-                if (image_path) {
-                    res.write(`data: [DONE]:${image_path}\n\n`)
+                //如果是推荐，那么查找图片和返回猜你想问
+                if (intention === 'recommend') {
+                    //查找和返回图片
+                    let three_info = findMsgImage(output_content)
+                    res.write(`data: [IMG]:${JSON.stringify(three_info)}\n\n`)
+                    res.write(`data: [DONE]:${JSON.stringify(more_question)}\n\n`)
                 } else {
                     res.write(`data: [DONE]:\n\n`)
                 }
@@ -483,6 +538,32 @@ app.post('/simulate', async (req, res) => {
 
     }
 
+})
+
+app.post('/guess', async (req, res) => {
+    console.log(new Date().toLocaleTimeString(), '猜你想问')
+    let { question, anwser } = req.body
+    //检查，如果没有传入对应参数，那么返回需要传参数
+    if (!question || !anwser) {
+        res.status(401).send('请求的参数中没有quesion或anwser字段');
+        return
+    }
+    question = question.replace("\n", ".").trim()
+    anwser = anwser.replace("\n", ".").trim()
+    const messages = [
+        { role: 'system', content: '你是一个可以根据给定内容生成问题的机器人，下面是一对用户提问和回答内容，请根据用户提问和回答，请写出用户可能还想问的3个相关问题。返回的格式类似这样，每个问题是1行，开头用Q加上序号表示。Q1:xxx\nQ2:yyyy\Q3:zzzz。现在开始:' },
+        { role: 'user', content: `用户提问: ${question}\n回答: ${anwser}` }
+    ]
+    const response = await openai.chatCompletion({ messages })
+    const content = response["message"]["content"]
+    //content变成列表
+    const contentList = content.split("\n")
+    const data = {
+        code: '0000',
+        msg: '成功',
+        data: contentList,
+    }
+    res.json(data); // 返回 JSON
 })
 
 async function create_thread() {
