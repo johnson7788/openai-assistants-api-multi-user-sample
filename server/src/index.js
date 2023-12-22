@@ -219,9 +219,8 @@ app.post('/stream', async (req, res) => {
 
     // Note: 
     // For simplicity or laziness, I will not be checking if assistant or thread is alive.
-    const intention = await getIntention(content)
     try {
-
+        const intention = await getIntention(content)
         const message_id = id
         //添加消息到线程
         const ret_message = await openai.addMessage({
@@ -376,7 +375,7 @@ app.post('/stream', async (req, res) => {
 
         console.log("报错信息是:", error.name, error.message)
 
-        res.sendStatus(400)
+        res.status(400).send(`错误: ${error.message}`);
         return
 
     }
@@ -434,9 +433,9 @@ app.post('/chat', async (req, res) => {
 
     // Note: 
     // For simplicity or laziness, I will not be checking if assistant or thread is alive.
-    const intention = await getIntention(content)
-    try {
 
+    try {
+        const intention = await getIntention(content)
         const message_id = id
         //添加消息到线程
         const ret_message = await openai.addMessage({
@@ -595,7 +594,7 @@ app.post('/chat', async (req, res) => {
 
         console.log("报错信息是:", error.name, error.message)
 
-        res.sendStatus(400)
+        res.status(400).send(`错误: ${error.message}`);
         return
 
     }
@@ -692,10 +691,6 @@ app.post('/simulate', async (req, res) => {
         return
     }
 
-    const output_data = anwserObj[content]
-    const intention = getIntention_simulate(content)
-    const more_question = guess_quesion_simulate(content)
-
     res.writeHead(200, {
         "Content-Type": "text/event-stream;charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
@@ -703,7 +698,9 @@ app.post('/simulate', async (req, res) => {
     })
 
     try {
-
+        const output_data = anwserObj[content]
+        const intention = getIntention_simulate(content)
+        const more_question = guess_quesion_simulate(content)
 
         let flagFinish = false
 
@@ -803,7 +800,7 @@ app.post('/simulate', async (req, res) => {
 
         console.log(error.name, error.message)
 
-        res.sendStatus(400)
+        res.status(400).send(`错误: ${error.message}`);
         return
 
     }
@@ -824,13 +821,10 @@ app.post('/simulate_json', async (req, res) => {
         return
     }
 
-    const output_data = anwserObj[content]
-    const intention = getIntention_simulate(content)
-    const more_question = guess_quesion_simulate(content)
-
     try {
-
-
+        const output_data = anwserObj[content]
+        const intention = getIntention_simulate(content)
+        const more_question = guess_quesion_simulate(content)
         let flagFinish = false
 
         let MAX_COUNT = 2 * 600 // 120s 
@@ -936,10 +930,8 @@ app.post('/simulate_json', async (req, res) => {
         res.end()
 
     } catch (error) {
-
         console.log(error.name, error.message)
-
-        res.sendStatus(400)
+        res.status(400).send(`错误: ${error.message}`);
         return
 
     }
