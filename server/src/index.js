@@ -28,7 +28,7 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true })) //使用 body-
 
 app.use((err, req, res, next) => {
     // 错误处理逻辑
-    console.error(`服务器出现错误，收到的请求是: ${req}, 出现的错误是: ${err}`);
+    console.error(`服务器出现错误，请求的接口是: ${req.url}, 出现的错误是: ${err}`);
     res.status(500).send('Internal Server Error');
 });
 
