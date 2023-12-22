@@ -4,7 +4,7 @@ import IconOpenAI from '../components/icons/IconOpenAI.vue'
 import IconPerson from '../components/icons/IconPerson.vue'
 
 import { getSimpleId } from '../lib/utils.js'
-import { hostURL } from '../config.js'
+import { hostURL, Endpoint } from '../config.js'
 import LoadingText from '../components/LoadingText.vue'
 import axios from 'axios'
 
@@ -12,14 +12,7 @@ import { useAppDataStore } from '../stores/appdata'
 
 const store = useAppDataStore()
 
-const welcome_message = {
-  role: 'system',
-  user_id: null,
-  content: "你好，欢迎使用香氛问答机器人，有任何问题都请问我吧!",
-  created_at: Date.now()
-}
 const display_question = ref('') //显示可能的问题
-const messageList = ref([welcome_message])  //历史对话信息
 const messageRef = ref(null)  //历史对话组件
 const inputRef = ref(null)  //对话框输入组件
 const userId = ref('')  //oumount时，getSimpleId自动生成 id
@@ -33,7 +26,7 @@ async function sendToChat(user_message) {
   //首先将 isAIProcessing.value 设置为 true，表示 AI 正在处理中。
   isAIProcessing.value = true
   //然后将用户消息 user_message 添加到 state.messageEvents 中，
-  messageList.value.push(user_message)
+  store.AppendMessage(user_message)
   //并将 message.value 置空，然后重置滚动条。
   message.value = ''
   resetScroll()
@@ -44,7 +37,7 @@ async function sendToChat(user_message) {
       user_id: user_message.user_id,
       content: user_message.content,
     };
-    const response = await axios.post(`${hostURL}/simulate_json`, data);
+    const response = await axios.post(`${hostURL}${Endpoint}`, data);
     //如果响应不成功（即 !response.ok），会在控制台打印出错误信息。
     const content = response.data.data.content;
     let images = response.data.data.picture;
@@ -65,7 +58,7 @@ async function sendToChat(user_message) {
       created_at: Date.now()
     }
     //将openai返回的消息加到列表
-    messageList.value.push(assistant_message)
+    store.AppendMessage(assistant_message)
     console.log(new Date().toLocaleString(), "AI回复消息", content)
   } catch (error) {
 
@@ -124,7 +117,7 @@ function getBackgroundClass(role, user_id) {
 // 当state.messageEvents有变化时，更新messages，即更新消息列表，返回排序后的messages，state.messageEvents来自socket.js
 const messages = computed(() => {
   console.log(new Date().toLocaleString(), "计算messages")
-  return messageList.value.sort((a, b) => {
+  return store.messageList.sort((a, b) => {
     if (a.created_at > b.created_at) return 1
     if (a.created_at < b.created_at) return -1
     return 0
@@ -138,7 +131,12 @@ function handleQuestionClick(question) {
 }
 
 onMounted(() => {
-  userId.value = getSimpleId()
+  if (store.id !== '') {
+    userId.value = store.id
+  } else {
+    userId.value = getSimpleId()
+    store.setId(userId.value )
+  }
 });
 
 </script>
@@ -406,4 +404,5 @@ onMounted(() => {
   font-size: 14px;
   margin-top: 10px;
   margin-bottom: 10px;
-}</style>
+}
+</style>
