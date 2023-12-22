@@ -12,12 +12,14 @@ import { useAppDataStore } from '../stores/appdata'
 
 const store = useAppDataStore()
 
+const display_question = ref('') //显示可能的问题
 const messageList = ref([])  //历史对话信息
 const messageRef = ref(null)  //历史对话组件
 const inputRef = ref(null)  //对话框输入组件
 const userId = ref('')  //oumount时，getSimpleId自动生成 id
 const message = ref('')  //用户输入的内容
 const isAIProcessing = ref(false) //是否等待AI回复中
+const buttonColors = ['primary', 'success', 'warning'];
 
 
 async function sendToChat(user_message) {
@@ -39,12 +41,19 @@ async function sendToChat(user_message) {
     const response = await axios.post(`${hostURL}/simulate_json`, data);
     //如果响应不成功（即 !response.ok），会在控制台打印出错误信息。
     const content = response.data.data.content;
-    const images = response.data.data.picture;
-    const more_quesion = response.data.data.more_quesion;
+    let images = response.data.data.picture;
+    //对images进行修改,每个img链接都加上hostURL
+    images = images.map((item) => {
+      item.img = `${hostURL}/${item.img}`;
+      return item;
+    })
+    const more_question = response.data.data.more_question;
+    //更新要显示的问题
+    display_question.value = more_question;
     //创建一个 assistant_message 对象
     let assistant_message = {
       role: 'assistant',
-      images:images,
+      images: images,
       user_id: null,
       content: content,
       created_at: Date.now()
@@ -116,6 +125,12 @@ const messages = computed(() => {
   })
 })
 
+function handleQuestionClick(question){
+  //每个点击的按钮对应的处理，更新message.value 为question的内容，然后触发handleSend
+  message.value = question
+  handleSend()
+}
+
 onMounted(() => {
   userId.value = getSimpleId()
 });
@@ -125,34 +140,41 @@ onMounted(() => {
 <template>
   <div class="container">
     <div class="messages" ref="messageRef">
-      <div class="message-item" :class="{ rowReverse: msg.user_id !== userId }" v-for="(msg) in messages" :key="msg.id">
-        <!-- 显示在左侧还是在右侧，跟msg.user_id有关 -->
-        <div class="message-contents"
-          :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
-          <!-- getBackgroundClass设置不同的用户不同的颜色 -->
-          <div class="message-text" :class="getBackgroundClass(msg.role, msg.user_id)">{{ msg.content }}</div>
-        </div>
-        <div class="sender" v-if="msg.role !== 'system'">
-          <div v-if="msg.role === 'user'" class="avatar">
-            <IconPerson />
+      <div class="message-item" v-for="(msg) in messages" :key="msg.id">
+        <div :class="{ rowReverse: msg.user_id !== userId }">
+          <!-- 显示在左侧还是在右侧，跟msg.user_id有关 -->
+          <div class="message-contents"
+            :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
+            <!-- getBackgroundClass设置不同的用户不同的颜色 -->
+            <div class="message-text" :class="getBackgroundClass(msg.role, msg.user_id)">{{ msg.content }}</div>
           </div>
-          <div v-else class="avatar">
-            <IconOpenAI />
-          </div>
-          <div class="sender-name">
-            <span>{{ msg.name }}</span>
+          <div class="sender" v-if="msg.role !== 'system'">
+            <div v-if="msg.role === 'user'" class="avatar">
+              <IconPerson />
+            </div>
+            <div v-else class="avatar">
+              <IconOpenAI />
+            </div>
+            <div class="sender-name">
+              <span>{{ msg.name }}</span>
+            </div>
           </div>
         </div>
         <div class="image-gallery">
-        <div v-for="image in msg.images" :key="image.title" class="image-item">
-          <img :src="image.img" :alt="image.title" class="image" href="image.url" />
-          <div class="image-title">{{ image.title }}</div>
-          <div class="image-price">价格：{{ image.price }}</div>
+          <div v-for="image in msg.images" :key="image.title" class="image-item">
+            <img :src="image.img" :alt="image.title" class="image" href="image.url" />
+            <div class="image-title">{{ image.title }}</div>
+            <div class="image-price">价格：{{ image.price }}</div>
+          </div>
         </div>
-      </div>
       </div>
       <div v-if="isAIProcessing" class="loading-text">
         <LoadingText />
+      </div>
+      <div class="more-question">
+        <el-button v-for="(content, index) in display_question" :key="index" :type="buttonColors[index]" @click="handleQuestionClick(content)">
+          {{ content }}
+        </el-button>
       </div>
     </div>
     <div class="input">
@@ -211,6 +233,7 @@ onMounted(() => {
   padding: 1rem 1rem 0 1rem;
   box-sizing: border-box;
   display: flex;
+  flex-direction: column;
 }
 
 .message-item:last-child {
@@ -326,6 +349,7 @@ onMounted(() => {
   padding: 4px 0;
   color: #555;
 }
+
 .image-gallery {
   display: flex;
 }
@@ -339,15 +363,24 @@ onMounted(() => {
 .image {
   width: 100%;
   max-width: 200px;
-  height: 200px; /* 设置固定高度 */
-  object-fit: cover; /* 自动裁剪以适应容器 */
+  height: 200px;
+  /* 设置固定高度 */
+  object-fit: cover;
+  /* 自动裁剪以适应容器 */
 }
 
 .image-title {
   margin-top: 10px;
 }
+
 .image-price {
   margin-top: 5px;
   font-size: 14px;
+}
+.more-question {
+  float: right;
+  font-size: 14px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 </style>
