@@ -147,7 +147,7 @@ onMounted(() => {
   <div class="container">
     <div class="messages" ref="messageRef">
       <div class="message-item" v-for="(msg) in messages" :key="msg.id">
-        <div :class="{ rowReverse: msg.user_id !== userId }">
+        <div :class="msg.user_id === userId ? 'rowNormal' : 'rowReverse'">
           <!-- 显示在左侧还是在右侧，跟msg.user_id有关 -->
           <div class="message-contents"
             :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
@@ -168,9 +168,11 @@ onMounted(() => {
         </div>
         <div class="image-gallery">
           <div v-for="image in msg.images" :key="image.title" class="image-item">
-            <img :src="image.img" :alt="image.title" class="image" href="image.url" />
-            <div class="image-title">{{ image.title }}</div>
-            <div class="image-price">价格：{{ image.price }}</div>
+            <a :href="image.url">
+              <img :src="image.img" :alt="image.title" class="image" />
+            </a>
+            <a class="image-title" :href="image.url">{{ image.title }}</a>
+            <a class="image-price" :href="image.url">价格：{{ image.price }}</a>
           </div>
         </div>
       </div>
@@ -334,7 +336,13 @@ onMounted(() => {
 }
 
 .rowReverse {
+  display: flex;
   flex-direction: row-reverse;
+}
+
+.rowNormal {
+  display: flex;
+  flex-direction: row;
 }
 
 .user {
@@ -358,13 +366,21 @@ onMounted(() => {
 }
 
 .image-gallery {
+  height: 150px;
   display: flex;
+  justify-content: flex-start;
+  width: 60%;
+  /* 设置图片整体占据的宽度 */
 }
 
 .image-item {
-  flex: 1;
+  flex: 0 0 auto;
+  /* 取消等分剩余空间 */
+  width: 20%;
   text-align: center;
-  margin: 10px;
+  margin: 5px;
+  transform: scale(0.5);
+  /* 整体缩小30% */
 }
 
 .image {
@@ -390,5 +406,4 @@ onMounted(() => {
   font-size: 14px;
   margin-top: 10px;
   margin-bottom: 10px;
-}
-</style>
+}</style>
