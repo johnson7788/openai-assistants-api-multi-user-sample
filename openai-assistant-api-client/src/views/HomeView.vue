@@ -12,8 +12,14 @@ import { useAppDataStore } from '../stores/appdata'
 
 const store = useAppDataStore()
 
+const welcome_message = {
+  role: 'system',
+  user_id: null,
+  content: "你好，欢迎使用香氛问答机器人，有任何问题都请问我吧!",
+  created_at: Date.now()
+}
 const display_question = ref('') //显示可能的问题
-const messageList = ref([])  //历史对话信息
+const messageList = ref([welcome_message])  //历史对话信息
 const messageRef = ref(null)  //历史对话组件
 const inputRef = ref(null)  //对话框输入组件
 const userId = ref('')  //oumount时，getSimpleId自动生成 id
@@ -125,7 +131,7 @@ const messages = computed(() => {
   })
 })
 
-function handleQuestionClick(question){
+function handleQuestionClick(question) {
   //每个点击的按钮对应的处理，更新message.value 为question的内容，然后触发handleSend
   message.value = question
   handleSend()
@@ -172,7 +178,8 @@ onMounted(() => {
         <LoadingText />
       </div>
       <div class="more-question">
-        <el-button v-for="(content, index) in display_question" :key="index" :type="buttonColors[index]" @click="handleQuestionClick(content)">
+        <el-button v-for="(content, index) in display_question" :key="index" :type="buttonColors[index]"
+          @click="handleQuestionClick(content)">
           {{ content }}
         </el-button>
       </div>
@@ -377,6 +384,7 @@ onMounted(() => {
   margin-top: 5px;
   font-size: 14px;
 }
+
 .more-question {
   float: right;
   font-size: 14px;
