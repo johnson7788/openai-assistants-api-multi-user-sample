@@ -116,6 +116,8 @@ function findMsgImage(msg) {
             image_path.push(name2picture[key])
         }
     })
+    //去重
+    image_path = [...new Set(image_path)];
     let three_info = []
     if (image_path.length === 0) {
         console.log(`未找到消息对应的图片, 随机选取3张图片消息是: ${msg}`)
@@ -123,7 +125,14 @@ function findMsgImage(msg) {
     } else if (image_path.length < 3) {
         console.log(`找到图片小于3个，补全到3个图片消息是: ${msg}`)
         three_info = image_path.map(path => picture2info[path])
-        three_info = three_info.concat(utils.getRandomProperties(picture2info, 3 - image_path.length))
+        //筛选下picture2info，防止挑选重复图片
+        const filteredPicture2info = Object.entries(picture2info).reduce((result, [key, value]) => {
+            if (!image_path.includes(key)) {
+              result[key] = value;
+            }
+            return result;
+          }, {});
+        three_info = three_info.concat(utils.getRandomProperties(filteredPicture2info, 3 - image_path.length))
     } else {
         console.log(`找到图片大于或等于个，直接截取3个即可: ${msg}`)
         let three_path = image_path.slice(0, 3)

@@ -1,114 +1,58 @@
 <script setup>
 import { onMounted, ref, computed, watch } from 'vue'
-
-import { socket, state } from '@/socket'
-
-import ToggleButton from '../components/ToggleButton.vue'
-import DialogName from '../components/DialogName.vue'
 import IconOpenAI from '../components/icons/IconOpenAI.vue'
 import IconPerson from '../components/icons/IconPerson.vue'
 
 import { getSimpleId } from '../lib/utils.js'
+import { hostURL } from '../config.js'
 import LoadingText from '../components/LoadingText.vue'
+import axios from 'axios'
 
 import { useAppDataStore } from '../stores/appdata'
 
 const store = useAppDataStore()
 
-const messageRef = ref(null)  //历史对话信息
+const messageList = ref([])  //历史对话信息
+const messageRef = ref(null)  //历史对话组件
 const inputRef = ref(null)  //对话框输入组件
-const userName = ref('')   //保存用户名
 const userId = ref('')  //oumount时，getSimpleId自动生成 id
 const message = ref('')  //用户输入的内容
-const isDialogShown = ref(false)  //是否显示姓名弹出框，如果没有
 const isAIProcessing = ref(false) //是否等待AI回复中
-const isConnecting = ref(false)  //控制当前是否是连接状态，即打开socket
 
-const isStreaming = ref(false) //判断是不是流式处理
-//接收子组件的事件
-function handleToggle(flag) {
-  console.log(new Date().toLocaleString(),"是否是流式处理:", flag)
-  isStreaming.value = flag
-}
 
-function sendToSocket(user_message) {
-  console.log(new Date().toLocaleString(),"发送消息到socket", user_message)
-  //先把用户消息放入消息事件，然后发送socket请求
-  state.messageEvents.push(user_message)
-  //发送用户消息到server，事件名称是message
-  socket.emit('message', user_message)
-  //重制用户的输入
-  message.value = ''
-  //滚动屏幕
-  resetScroll()
-
-}
-
-async function sendToStream(user_message) {
-  console.log(new Date().toLocaleString(),"发送消息到stream", user_message)
+async function sendToChat(user_message) {
+  console.log(new Date().toLocaleString(), "发送消息到Chat接口", user_message)
   //首先将 isAIProcessing.value 设置为 true，表示 AI 正在处理中。
   isAIProcessing.value = true
   //然后将用户消息 user_message 添加到 state.messageEvents 中，
-  state.messageEvents.push(user_message)
+  messageList.value.push(user_message)
   //并将 message.value 置空，然后重置滚动条。
   message.value = ''
-
   resetScroll()
 
   try {
     //使用 fetch 函数向指定的 URL 发送 POST 请求，请求的内容为 user_message。如果请求成功，会得到一个响应 response。
-    const response = await fetch(`http://${import.meta.env.VITE_SERVER_IPADDRESS}:${import.meta.env.VITE_SERVER_PORT}/stream`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(user_message)
-    })
+    const data = {
+      user_id: user_message.user_id,
+      content: user_message.content,
+    };
+    const response = await axios.post(`${hostURL}/simulate_json`, data);
     //如果响应不成功（即 !response.ok），会在控制台打印出错误信息。
-    if(!response.ok) {
-      console.log('Oops, an error occurred', response.status)
-    }
-    //生成一个 msg_id，
-    const msg_id = getSimpleId()
+    const content = response.data.data.content;
+    const images = response.data.data.picture;
+    const more_quesion = response.data.data.more_quesion;
     //创建一个 assistant_message 对象
-    let assistant_message = { 
+    let assistant_message = {
+      role: 'assistant',
+      images:images,
       user_id: null,
-      name: 'ChatGPT', 
-      content: '', 
-      role: 'assistant', 
-      id: msg_id, 
-      created_at: Date.now() 
+      content: content,
+      created_at: Date.now()
     }
-    state.messageEvents.push(assistant_message)
-
-    const reader = response.body.getReader()
-
-    let flag = true
-    // 不停读取新的数据
-    while(flag) {
-      //直到都读取完成
-      const { done, value } = await reader.read()
-
-      if(done) {
-        flag = false
-        break
-      }
-      //解码成文本
-      const text = new TextDecoder().decode(value)
-      //更新messageEvents
-      state.messageEvents = state.messageEvents.map((item) => {
-        return {
-          ...item,
-          content: item.id === msg_id ? item.content + text : item.content
-        }
-      })
-
-      resetScroll()
-
-    }
-
-  } catch(error) {
+    //将openai返回的消息加到列表
+    messageList.value.push(assistant_message)
+    console.log(new Date().toLocaleString(), "AI回复消息", content)
+  } catch (error) {
 
     console.log(error.name, error.message)
 
@@ -122,61 +66,27 @@ async function sendToStream(user_message) {
 
 function handleSend() {
   //来发送用户消息，如果AI正在思考中，那么就直接返回
-  if(isAIProcessing.value) {
+  if (isAIProcessing.value) {
     return
   }
-  console.log(new Date().toLocaleString(),"用户开始发送消息")
+  console.log(new Date().toLocaleString(), "用户开始发送消息")
   //content是用户输入的内容， name： 用户名
-  const user_message = { 
-    user_id: userId.value, 
-    name: userName.value, 
-    content: message.value, 
-    role: 'user', 
-    id: getSimpleId(), 
-    created_at: Date.now() 
+  const user_message = {
+    role: "user",
+    user_id: userId.value,
+    content: message.value,
+    created_at: Date.now(),
   }
-  //流式传输还是其它方式
-  if(isStreaming.value) {
-
-    sendToStream(user_message)
-
-  } else [
-
-    sendToSocket(user_message)
-
-  ]
-
-  /*
-  state.messageEvents.push(user_message)
-  //将消息发送到服务器
-  socket.emit('message', user_message)
+  sendToChat(user_message)
 
   message.value = ''
   //发送完成后滚动下屏幕
   resetScroll()
-  */
-
-}
-// 接收最弹出框传入来的名称
-function handleSubmitName(value) {
-  console.log(new Date().toLocaleString(),"接收到用户名")
-  //处理用户名提交并注册用户，value是用户输入的用户名
-  isConnecting.value = true
-  //更新ref中的userName
-  userName.value = value
-  store.setName(value)
-  // 如果已经是连接的状态，那么就注册用户，否则就进行连接
-  if(state.connected) {
-    socket.emit('register', { user_id: userId.value, name: userName.value })
-    isConnecting.value = false
-  } else {
-    socket.connect() //打开socket, 
-  }
 
 }
 
 function resetScroll() {
-  console.log(new Date().toLocaleString(),"滚动屏幕")
+  console.log(new Date().toLocaleString(), "滚动屏幕")
   //函数来滚动消息列表, setTimeout() 方法将消息列表滚动到底部
   setTimeout(() => {
     messageRef.value.scrollTop = messageRef.value.scrollHeight
@@ -184,120 +94,32 @@ function resetScroll() {
 
 }
 
-function showSystemMessage(name, stype) {
-  console.log(new Date().toLocaleString(),"显示系统消息")
-  //函数来显示系统消息,将系统消息添加到消息列表
-  const message_text = stype === 'welcome' ? `Welcome ${name}` : stype === 'disconnect' ? `You are disconnected from the server` : `${name} has ${stype === 'join' ? 'joined' : 'left'} the discussion`
-
-  const system_message = { 
-    user_id: '', 
-    name: 'system', 
-    content: message_text, 
-    role: 'system', 
-    id: getSimpleId(),  //创建一个用户id，eg："170236891260777ojnb41fmc3"
-    created_at: Date.now() 
-  }
-  //socket.js中定义了state，这里是把系统消息放入messageEvents数组中，这会触发下面的compute方法
-  state.messageEvents.push(system_message)
-  //滚动屏幕
-  resetScroll()
-
-}
-
 function getBackgroundClass(role, user_id) {
-  console.log(new Date().toLocaleString(),"获取背景样式")
+  console.log(new Date().toLocaleString(), "获取背景样式")
   //函数根据用户/AI 设置消息的背景颜色
-  if(role === 'system') {
+  if (role === 'system') {
     return 'system'
-  } if(role === 'assistant') {
+  } if (role === 'assistant') {
     return 'bot'
   } else {
     return user_id !== userId.value ? 'other' : 'user'
   }
 }
-//实现处理 AI 处理开始/结束事件的函数
-function handleAIOnStart() {
-  console.log(new Date().toLocaleString(),"AI开始处理")
-  isAIProcessing.value = true
-}
-function handleAIOnEnd() {
-  console.log(new Date().toLocaleString(),"AI结束处理")
-  isAIProcessing.value = false
-}
+
 // 当state.messageEvents有变化时，更新messages，即更新消息列表，返回排序后的messages，state.messageEvents来自socket.js
 const messages = computed(() => {
-  console.log(new Date().toLocaleString(),"计算messages")
-  return state.messageEvents.sort((a, b) => {
-    if(a.created_at > b.created_at) return 1
-    if(a.created_at < b.created_at) return -1
+  console.log(new Date().toLocaleString(), "计算messages")
+  return messageList.value.sort((a, b) => {
+    if (a.created_at > b.created_at) return 1
+    if (a.created_at < b.created_at) return -1
     return 0
   })
 })
 
-//监控用户消息state.connectTrigger状态是否改变，如果是连接状态，那么注册用户
-watch(state.connectTrigger, () => {
-  console.log(new Date().toLocaleString(),"监听连接消息,注册用户")
-  socket.emit('register', { user_id: userId.value, name: userName.value })
-  isConnecting.value = false
-
-})
-//监控消息是否改变，消息改变的话，就滚动聊天窗口
-watch(state.messageTrigger, () => {
-  
-  resetScroll()
-  
-})
-//监控系统消息state.systemTrigger是否改变， eg state.systemTrigger中的内容： {
-    // "type": "welcome",
-    // "iat": 1702517965736
-// }，如果发生改变，把新的值传入，传入的新值被取数组的第1个元素作为值，传入，因为state.systemTrigger是1个列表，我们只需取最新的消息即可
-watch(state.systemTrigger, ([ newval ]) => {
-  console.log(new Date().toLocaleString(),"监听系统消息，选择多种任务")
-  console.log("system-trigger",  newval.type, newval.data)
-
-  switch(newval.type) {
-    case 'welcome':
-      isDialogShown.value = false //关闭用户名对话框
-      inputRef.value.focus()
-      showSystemMessage(userName.value, newval.type)
-      break
-    case 'disconnect':
-      showSystemMessage(userName.value, newval.type)
-      break
-    case 'leave':
-    case 'join':
-      showSystemMessage(newval.data.name, newval.type)
-      break
-    case 'ai-start':
-      handleAIOnStart()  //更改显示状态
-      break
-    case 'ai-end':
-      handleAIOnEnd()
-      break
-    default:
-      //
-  }
-  
-})
-//钩子设置初始值并检查连接状态，如果没有和服务器是连接状态，那么输入姓名提示框
 onMounted(() => {
-  console.log(new Date().toLocaleString(),"onMounted, 判断是否存在用户还是弹出用户框")
-  if(state.connected) {
+  userId.value = getSimpleId()
+});
 
-    userId.value = store.id
-    userName.value = store.name
-
-  } else {
-
-    const new_id = getSimpleId()
-    userId.value = new_id
-    store.setId(new_id)
-    //弹出姓名输入提示框
-    isDialogShown.value = true
-
-  }
-
-})
 </script>
 
 <template>
@@ -305,7 +127,8 @@ onMounted(() => {
     <div class="messages" ref="messageRef">
       <div class="message-item" :class="{ rowReverse: msg.user_id !== userId }" v-for="(msg) in messages" :key="msg.id">
         <!-- 显示在左侧还是在右侧，跟msg.user_id有关 -->
-        <div class="message-contents" :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
+        <div class="message-contents"
+          :class="{ marginLeft: msg.user_id !== userId, marginRight: msg.user_id === userId }">
           <!-- getBackgroundClass设置不同的用户不同的颜色 -->
           <div class="message-text" :class="getBackgroundClass(msg.role, msg.user_id)">{{ msg.content }}</div>
         </div>
@@ -320,23 +143,25 @@ onMounted(() => {
             <span>{{ msg.name }}</span>
           </div>
         </div>
+        <div class="image-gallery">
+        <div v-for="image in msg.images" :key="image.title" class="image-item">
+          <img :src="image.img" :alt="image.title" class="image" href="image.url" />
+          <div class="image-title">{{ image.title }}</div>
+          <div class="image-price">价格：{{ image.price }}</div>
+        </div>
+      </div>
       </div>
       <div v-if="isAIProcessing" class="loading-text">
         <LoadingText />
       </div>
     </div>
     <div class="input">
-      <input ref="inputRef" @keyup.enter="handleSend" placeholder="Send message" class="input-text" type="text" v-model="message" />
+      <input ref="inputRef" @keyup.enter="handleSend" placeholder="Send message" class="input-text" type="text"
+        v-model="message" />
       <button :disabled="!message || isAIProcessing" @click="handleSend" class="button">Send</button>
     </div>
     <div class="footer">
-      <div class="toggle">
-        <ToggleButton :checked="isStreaming" @change="handleToggle" />
-      </div>
     </div>
-    <Teleport to="body">
-      <DialogName :show="isDialogShown" :disabled="isConnecting" @submit="handleSubmitName" />
-    </Teleport>
   </div>
 </template>
 
@@ -344,10 +169,12 @@ onMounted(() => {
 .toggle {
   position: relative;
 }
+
 .loading-text {
   position: relative;
   padding: 6px 0;
 }
+
 .sender {
   position: relative;
   width: 80px;
@@ -357,11 +184,13 @@ onMounted(() => {
   align-items: center;
   box-sizing: border-box;
 }
+
 .avatar {
   width: 24px;
   height: 24px;
   margin-top: 4px;
 }
+
 .sender-name {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -372,37 +201,46 @@ onMounted(() => {
   text-align: center;
   line-height: 100%;
 }
+
 .sender-name span {
   font-size: .7rem;
   line-height: 100%;
 }
+
 .message-item {
   padding: 1rem 1rem 0 1rem;
   box-sizing: border-box;
   display: flex;
 }
+
 .message-item:last-child {
   padding-bottom: 1rem;
 }
+
 .avatar * {
   fill: #232;
 }
+
 .message-contents {
   flex-grow: 1;
 }
+
 .message-text {
   background-color: #fff;
   border-radius: 6px;
   padding: .6rem;
   white-space: pre-wrap;
 }
+
 .container {
   position: relative;
   height: 100vh;
 }
+
 .messages::-webkit-scrollbar {
   display: none;
 }
+
 .messages {
   scroll-behavior: smooth;
   background-color: aliceblue;
@@ -412,11 +250,13 @@ onMounted(() => {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .input {
   position: relative;
   display: flex;
   padding: 1rem;
 }
+
 .button {
   appearance: none;
   background-color: #00DC82;
@@ -427,12 +267,15 @@ onMounted(() => {
   height: 36px;
   cursor: pointer;
 }
+
 .button:active {
   background-color: #00DC8299;
 }
+
 .button:disabled {
   background-color: #999;
 }
+
 .input-text {
   background-color: #efefef;
   appearance: none;
@@ -442,9 +285,11 @@ onMounted(() => {
   padding: 0 1rem;
   flex-grow: 1;
 }
+
 .footer {
   text-align: center;
 }
+
 .footer span {
   font-size: .6rem;
   font-style: italic;
@@ -453,26 +298,56 @@ onMounted(() => {
 .marginRight {
   margin-right: 8px;
 }
+
 .marginLeft {
   margin-left: 8px;
 }
+
 .rowReverse {
   flex-direction: row-reverse;
 }
+
 .user {
   background-color: #fff;
 }
+
 .other {
   background-color: #efefef;
 }
+
 .bot {
   background-color: #ccddff;
 }
+
 .system {
   background-color: transparent;
   text-align: center;
   font-size: .8rem;
   padding: 4px 0;
   color: #555;
+}
+.image-gallery {
+  display: flex;
+}
+
+.image-item {
+  flex: 1;
+  text-align: center;
+  margin: 10px;
+}
+
+.image {
+  width: 100%;
+  max-width: 200px;
+  height: 200px; /* 设置固定高度 */
+  object-fit: cover; /* 自动裁剪以适应容器 */
+}
+
+.image-title {
+  margin-top: 10px;
+}
+.image-price {
+  margin-top: 5px;
+  font-size: 14px;
 }
 </style>
