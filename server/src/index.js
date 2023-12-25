@@ -623,8 +623,8 @@ function getIntention_simulate(question) {
 async function getIntention(question) {
     question = question.replace("\n", ".").trim()
     const messages = [
-        { role: 'system', content: '根据用户的提问判断用户的聊天意图，如果涉及到了商品或香水，请返回是，否则返回否。只返回是或否即可。' },
-        { role: 'user', content: `用户的提问: ${question}` }
+        { role: 'system', content: '根据用户的提问判断用户的聊天意图，如果涉及到了商品或香水，请返回是，否则返回否。只返回是或否即可。例如: 你好 => 否\n; hello => 否\n;什么是木质调香水 => 是\n;' },
+        { role: 'user', content: `${question} ==>` }
     ]
     const response = await openai.chatCompletion({ messages })
     const content = response["message"]["content"]
