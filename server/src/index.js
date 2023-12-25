@@ -621,18 +621,31 @@ function getIntention_simulate(question) {
 }
 
 async function getIntention(question) {
-    question = question.replace("\n", ".").trim()
-    const messages = [
-        { role: 'system', content: '根据用户的提问判断用户的聊天意图，如果涉及到了商品或香水，请返回是，否则返回否。只返回是或否即可。例如: 你好 => 否\n; hello => 否\n;什么是木质调香水 => 是\n;' },
-        { role: 'user', content: `${question} ==>` }
-    ]
-    const response = await openai.chatCompletion({ messages })
-    const content = response["message"]["content"]
-    //二分类意图
-    console.log(`问题：${question} 意图判断的结果是:${content}`)
     let intention = "welcome"
-    if (content.includes("是")) {
-        intention = "recommend"
+    question_mapper = {
+        'hello': 'welcome',
+        'hi': 'welcome',
+        '你好': 'welcome',
+        '你好啊': 'welcome',
+        '您好': 'welcome',
+    }
+    intention = question_mapper[question.toLowerCase()]
+    
+    if (intention === undefined) {
+        question = question.replace("\n", ".").trim()
+        const messages = [
+            { role: 'system', content: '根据用户的提问判断用户的聊天意图，如果涉及到了商品或香水，请返回是，否则返回否。只返回是或否即可。例如: 你好 => 否\n; hello => 否\n;什么是木质调香水 => 是\n;' },
+            { role: 'user', content: `${question} ==>` }
+        ]
+        const response = await openai.chatCompletion({ messages })
+        const content = response["message"]["content"]
+        //二分类意图
+        console.log(`问题：${question} 意图判断的结果是:${content}`)
+        if (content.includes("是")) {
+            intention = "recommend"
+        }
+    }else {
+        console.log(`通过规则匹配到了意图，用户问题是 ${question}， 判断意图是: `, intention)
     }
     return intention
 }
