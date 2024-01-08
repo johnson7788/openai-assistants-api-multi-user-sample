@@ -727,6 +727,18 @@ const anwserObj = {
     "同类型香水还有哪些？": "同类型的香水包括同属于相同香调的其他品牌和系列香水，例如同为花香调的其他花香型香水等。",
 }
 
+const anwserFunction = {
+    "列举30个汤姆福特的产品": {
+        "response": "好的，30个搜索到的产品请见左侧",
+        "func_name": "neo4j",
+        "func_params": 'MATCH p=()-[r:BRAND_IS] ->(n:Brand {name:"汤姆·福特"}) return p limit 30',
+    },
+    "按价格排列这些商品并绘图": {
+        "response": "图已经绘制完成，请查看最左侧框",
+        "func_name": "price sort",
+        "func_params": "", 
+    }
+}
 
 app.post('/simulate', async (req, res) => {
     console.log(new Date().toLocaleTimeString(), '收到了正式的Stream请求')
