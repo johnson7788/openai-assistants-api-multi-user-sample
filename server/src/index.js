@@ -733,11 +733,31 @@ const anwserFunction = {
         "func_name": "neo4j",
         "func_params": 'MATCH p=()-[r:BRAND_IS] ->(n:Brand {name:"汤姆·福特"}) return p limit 30',
     },
+    "列举10个闻献的香水": {
+        "response": "好的，10个搜索到的闻献香水请见左侧",
+        "func_name": "neo4j",
+        "func_params": 'MATCH p=()-[r:BRAND_IS] ->(n:Brand {name:"闻献"}) return p limit 10',
+    },
+    "是男香的香水": {
+        "response": "好的，搜索到了25个是男香的香水",
+        "func_name": "neo4j",
+        "func_params": 'MATCH p=()-[r:FOR_GENDER_IS]->(c:Gender {name:"男香"}) RETURN p LIMIT 25',
+    },
+    "香调是花香调的香水": {
+        "response": "好的，搜到了10个是花香调的香水",
+        "func_name": "neo4j",
+        "func_params": 'MATCH p=()-[r:NOTE_IS] ->(n:Note {name:"花香调"}) return p limit 10',
+    },
+    "和阿蒂仙之香偷香玫瑰香味相同的香水有哪些？": {
+        "response": "好的，搜到了60个这样的商品",
+        "func_name": "neo4j",
+        "func_params": 'MATCH (n:Perfume {name:"阿蒂仙之香 偷香玫瑰 小偷玫瑰"})-[: FRAGRANCE_IS]->(m)<-[: FRAGRANCE_IS]-(p)  RETURN n,p,m LIMIT 60',
+    },
     "按价格排列这些商品并绘图": {
         "response": "图已经绘制完成，请查看最左侧框",
         "func_name": "price sort",
         "func_params": "", 
-    }
+    },
 }
 
 app.post('/simulate', async (req, res) => {
@@ -885,7 +905,15 @@ app.post('/simulate_json', async (req, res) => {
     }
 
     try {
-        const output_data = anwserObj[content]
+        let output_data = anwserObj[content]
+        let func_name = ""
+        let func_params = ""
+        if (!output_data) {
+            const out = anwserFunction[content]
+            output_data = out["response"]
+            func_name = out["func_name"]
+            func_params = out["func_params"]
+        }
         const intention = getIntention_simulate(content)
         const more_question = guess_quesion_simulate(content)
         let flagFinish = false
@@ -914,6 +942,8 @@ app.post('/simulate_json', async (req, res) => {
                             content: output_content,
                             picture: three_info,
                             more_question: more_question,
+                            func_name:func_name,
+                            func_params: func_params,
                         },
                     }
                     res.json(data); // 返回 JSON
