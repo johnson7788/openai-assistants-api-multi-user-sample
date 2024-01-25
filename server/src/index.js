@@ -191,9 +191,20 @@ app.post('/stream', async (req, res) => {
         }
         if (!content) {
             content = "请根据图片的内容，找出符合图片意境的商品" + "\n图片的内容是:" + tags
-        }else {
+        } else {
             content = content + "\n图片的内容是:" + tags
         }
+    }
+    //如果content中有提及图片，那么也可以提取图片的链接
+    const image_url = extract_url(content)
+    if (image_url) {
+        image = image_url
+        var { flag, tags } = await recognize_image(image_url)
+        if (!flag) {
+            res.status(400).send('图片识别接口错误，请联系管理员');
+            return
+        }
+        content = content.replace(image_url, '') + "\n图片的内容是:" + tags
     }
     console.log(new Date().toLocaleTimeString(), `用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
@@ -418,9 +429,20 @@ app.post('/chat', async (req, res) => {
         }
         if (!content) {
             content = "请根据图片的内容，找出符合图片意境的商品" + "\n图片的内容是:" + tags
-        }else {
+        } else {
             content = content + "\n图片的内容是:" + tags
         }
+    }
+    //如果content中有提及图片，那么也可以提取图片的链接
+    const image_url = extract_url(content)
+    if (image_url) {
+        image = image_url
+        var { flag, tags } = await recognize_image(image_url)
+        if (!flag) {
+            res.status(400).send('图片识别接口错误，请联系管理员');
+            return
+        }
+        content = content.replace(image_url, '') + "\n图片的内容是:" + tags
     }
     console.log(new Date().toLocaleTimeString(), `用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
@@ -756,7 +778,7 @@ const anwserObj = {
     "香水的主要成分是什么？": "香水的主要成分包括香料、酒精和水，香料是赋予香水独特气味的关键成分。",
     "同类型香水还有哪些？": "同类型的香水包括同属于相同香调的其他品牌和系列香水，例如同为花香调的其他花香型香水等。",
     "有没有符合下面图片意境的香水？扶手椅  | 毯子/覆盖层 | 灯  | 地毯  | 沙发 | 狗 | 灰色 | 绿色  | 坐垫/搁脚凳/草丛 | 家/住宅 | 躺  | 客厅  | 相框  | 枕头  | 植物  | 房间  | 壁灯  | 坐/放置/坐落 | 木地板 ": "综合你所描述的图片内容，这幅画面流露出的是一种家的温馨、舒适和平静。画面上的扶手椅、毯子、灯光和沙发等元素营造了一个非常适合居家放松和享受安逸生活的氛围。结合这些元素，可以推荐一款温暖而具有木质调性的香水。\n\n考虑到这个画面的温馨家居氛围，一款适合的香水可能是【汤姆福特香水珍华乌木香型】，它具有性感而且沉稳的香味，以木质香调为主，散发周围的暧昧气息，温暖而且有层次感，能够营造出一种安全感和高级感，非常适合家中的放松场合。这款香水的香味给人一种高冷而诱惑性感的情绪，同时香味画面中含有树木的气息，暗潮涌动，与你所描述的意境非常契合，尤其是木地板、植物这些元素在香水中得以反映。\n\n香水特点描述中提到它如坠入无边温暖的怀抱，沉稳之下性感暗涌，乌木是为野心蓬勃的人而生的克制艺术，这些描述与家居温暖和舒适的氛围非常相符。因此，建议考虑这款香水来补充你图片中所描绘的生活场景。",
-    "有没有类似图片中这种感觉的香水？游乐园  | 游乐设施  | 吸引力  | 狂欢节  | 集市 | 摩天轮 | 骑/搭乘 | 过山车  | 日落  | 水  | 水上乐园 | 水路 | 车轮":"考虑到您提到的游乐园、狂欢节、集市和日落等元素，推荐给您一款具有热闹活泼画面的香水——汤姆·福特的“汤姆福特落日流光”（TomFordSoleildeFeu）。这款香水具有中性的木质花香调，融合了椰子水、晚香玉、檀香、安息香树脂和琥珀的香调，带给人一种温柔且清甜的果香感。香味画面传递出高级且活泼的感觉，如同游乐场里的路边风景。适合出游、聚会音乐节等活泼场合，能够表现出馥郁撩拨、明艳不可方物的特点。希望这款香水能够沁入您心田，带给您欢乐游乐场的愉快感受。"
+    "有没有类似图片中这种感觉的香水？游乐园  | 游乐设施  | 吸引力  | 狂欢节  | 集市 | 摩天轮 | 骑/搭乘 | 过山车  | 日落  | 水  | 水上乐园 | 水路 | 车轮": "考虑到您提到的游乐园、狂欢节、集市和日落等元素，推荐给您一款具有热闹活泼画面的香水——汤姆·福特的“汤姆福特落日流光”（TomFordSoleildeFeu）。这款香水具有中性的木质花香调，融合了椰子水、晚香玉、檀香、安息香树脂和琥珀的香调，带给人一种温柔且清甜的果香感。香味画面传递出高级且活泼的感觉，如同游乐场里的路边风景。适合出游、聚会音乐节等活泼场合，能够表现出馥郁撩拨、明艳不可方物的特点。希望这款香水能够沁入您心田，带给您欢乐游乐场的愉快感受。"
 }
 
 async function recognize_image(image_md5) {
@@ -787,9 +809,23 @@ async function recognize_image(image_md5) {
     }
 };
 
+function extract_url(content) {
+    const regex = /(图|picture|image)/i;
+    const containsKeyword = regex.test(content);
+    const regurl = /(http|www)/i;
+    const containsurlKeyword = regurl.test(content)
+    if (containsKeyword && containsurlKeyword) {
+        const reg = /(https?:\/\/[^\s|,|，|。]+)/g;
+        let url = content.match(reg)
+        if (url) {
+            return url[0]
+        }
+    }
+}
+
 app.post('/simulate', async (req, res) => {
-    console.log(new Date().toLocaleTimeString(), '收到了正式的Stream请求')
-    const { user_id, content, image } = req.body
+    console.log(new Date().toLocaleTimeString(), '收到了模拟的Stream请求')
+    let { user_id, content, image } = req.body
     // 如果图片存在，那么调用图片tags模型，识别图片标签
     if (image) {
         var { flag, tags } = await recognize_image(image)
@@ -797,6 +833,17 @@ app.post('/simulate', async (req, res) => {
             res.status(400).send('图片识别接口错误，请联系管理员');
             return
         }
+    }
+    //如果content中有提及图片，那么也可以提取图片的链接
+    const image_url = extract_url(content)
+    if (image_url) {
+        image = image_url
+        var { flag, tags } = await recognize_image(image_url)
+        if (!flag) {
+            res.status(400).send('图片识别接口错误，请联系管理员');
+            return
+        }
+        content = content.replace(image_url, '')
     }
     console.log(new Date().toLocaleTimeString(), `用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
@@ -931,7 +978,7 @@ app.post('/simulate', async (req, res) => {
 
 app.post('/simulate_json', async (req, res) => {
     console.log(new Date().toLocaleTimeString(), '收到了模拟的Stream请求')
-    const { user_id, content, image } = req.body
+    let { user_id, content, image } = req.body
     // 如果图片存在，那么调用图片tags模型，识别图片标签
     if (image) {
         var { flag, tags } = await recognize_image(image)
@@ -939,6 +986,17 @@ app.post('/simulate_json', async (req, res) => {
             res.status(400).send('图片识别接口错误，请联系管理员');
             return
         }
+    }
+    //如果content中有提及图片，那么也可以提取图片的链接
+    const image_url = extract_url(content)
+    if (image_url) {
+        image = image_url
+        var { flag, tags } = await recognize_image(image_url)
+        if (!flag) {
+            res.status(400).send('图片识别接口错误，请联系管理员');
+            return
+        }
+        content = content.replace(image_url, '')
     }
     console.log(new Date().toLocaleTimeString(), `用户id: ${user_id}, 问题是: ${content}`)
     let created_at = Date.now()
